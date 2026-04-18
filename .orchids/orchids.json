@@ -1,0 +1,7 @@
+{
+  "startupCommands": [
+    "npm install; npx vite --port 3000 --host 0.0.0.0"
+  ],
+  "projectId": "65ea58fe-6474-4cd3-ad08-9de115b46be1",
+  "templateId": "any"
+}
