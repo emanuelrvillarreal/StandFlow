@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
+import { supabase } from '../lib/supabase'
 import StandDot from '../components/StandDot'
 import StandModal from '../components/StandModal'
 import ReservationFlow from '../components/ReservationFlow'
@@ -9,6 +10,24 @@ import { ArrowLeft, Edit3, Plus, Eye, Layers, Info } from 'lucide-react'
 
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
 const STATUS_COLORS = { available:'#22c55e', pending:'#eab308', reserved:'#ef4444', blocked:'#9ca3af' }
+
+function toStandRow(stand, eventId) {
+  return {
+    id: stand.id,
+    event_id: eventId,
+    number: stand.number,
+    sector: stand.sector,
+    x: stand.x,
+    y: stand.y,
+    price: stand.price,
+    status: stand.status,
+    category_id: stand.categoryId || null,
+  }
+}
+
+function createUuid() {
+  return crypto.randomUUID()
+}
 
 export default function MapPage() {
   const { eventId } = useParams()
@@ -28,7 +47,7 @@ export default function MapPage() {
 
   if (!event) return <div className="p-8 text-center">Evento no encontrado.</div>
 
-  const isAdmin = currentUser?.role === 'admin'
+  const isAdmin = currentUser?.role_id === 1
   const stands = event.stands.filter(s => s.sector === sector)
   const filteredStands = filterStatus === 'all' ? stands : stands.filter(s => s.status === filterStatus)
 
@@ -42,25 +61,54 @@ export default function MapPage() {
     }
   }
 
-  function handleDragEnd(standId, x, y) {
+  async function handleDragEnd(standId, x, y) {
+    const { error } = await supabase.from('stands').update({ x, y }).eq('id', standId)
+    if (error) {
+      alert(`No se pudo guardar la ubicación del stand: ${error.message}`)
+      return
+    }
+
     dispatch({ type: 'UPDATE_STAND', eventId: event.id, standId, updates: { x, y } })
   }
 
-  function handleEditSave(updatedStand) {
+  async function handleEditSave(updatedStand) {
     if (!updatedStand.id) {
       const newStand = {
         ...updatedStand,
-        id: 'st' + Date.now(),
+        id: createUuid(),
         sector,
       }
+
+      const { error } = await supabase.from('stands').insert(toStandRow(newStand, event.id))
+      if (error) {
+        alert(`No se pudo guardar el stand en la base de datos: ${error.message}`)
+        return
+      }
+
       dispatch({ type: 'ADD_STAND', eventId: event.id, stand: newStand })
     } else {
+      const { error } = await supabase
+        .from('stands')
+        .update(toStandRow(updatedStand, event.id))
+        .eq('id', updatedStand.id)
+
+      if (error) {
+        alert(`No se pudo actualizar el stand en la base de datos: ${error.message}`)
+        return
+      }
+
       dispatch({ type: 'UPDATE_STAND', eventId: event.id, standId: updatedStand.id, updates: updatedStand })
     }
     setEditingStand(null)
   }
 
-  function handleDelete(standId) {
+  async function handleDelete(standId) {
+    const { error } = await supabase.from('stands').delete().eq('id', standId)
+    if (error) {
+      alert(`No se pudo eliminar el stand de la base de datos: ${error.message}`)
+      return
+    }
+
     dispatch({ type: 'DELETE_STAND', eventId: event.id, standId })
     setEditingStand(null)
   }
@@ -164,21 +212,26 @@ export default function MapPage() {
 
         {/* Map */}
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-          <div className="map-container w-full" ref={mapRef}>
-            <img src={mapSrc} alt={`Plano ${sector}`} className="w-full h-auto block select-none" draggable={false}/>
-            {filteredStands.map(stand => {
-              const cat = categories.find(c => c.id === stand.categoryId)
-              return (
-                <StandDot key={stand.id}
-                  stand={stand}
-                  category={cat}
-                  editMode={editMode}
-                  onClick={handleStandClick}
-                  onDragEnd={handleDragEnd}
-                  mapRef={mapRef}
-                />
-              )
-            })}
+          <div className="map-container-wrapper w-full overflow-auto cursor-grab active:cursor-grabbing">
+            <div className="map-container relative min-w-[700px] md:min-w-0 w-full" ref={mapRef}>
+              <img src={mapSrc} alt={`Plano ${sector}`} className="w-full h-auto block select-none" draggable={false}/>
+              {filteredStands.map(stand => {
+                const cat = categories.find(c => c.id === stand.categoryId)
+                return (
+                  <StandDot key={stand.id}
+                    stand={stand}
+                    category={cat}
+                    editMode={editMode}
+                    onClick={handleStandClick}
+                    onDragEnd={handleDragEnd}
+                    mapRef={mapRef}
+                  />
+                )
+              })}
+            </div>
+          </div>
+          <div className="bg-gray-50 px-4 py-2 border-t md:hidden flex items-center justify-center gap-2 text-[10px] text-gray-400">
+            <div className="flex items-center gap-1"><span className="w-2 h-2 bg-gray-300 rounded-full"/> Deslizá para ver el mapa completo</div>
           </div>
         </div>
 

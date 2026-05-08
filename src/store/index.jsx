@@ -1,4 +1,5 @@
-import { createContext, useContext, useReducer } from 'react'
+import { createContext, useContext, useReducer, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 // ─── Initial Data ────────────────────────────────────────────────────────────
 const INITIAL_CATEGORIES = [
@@ -161,6 +162,33 @@ const INITIAL_RESERVATIONS = [
   },
 ]
 
+const INITIAL_SETTINGS = {
+  whatsappNumber: '5491112345678',
+  whatsappTemplate: `¡Hola! Quiero confirmar mi reserva:
+
+📍 Evento: {evento}
+🏷️ Stand: {stand_numero} - {stand_nombre}
+📂 Categoría: {categoria}
+💰 Importe: {importe}
+👤 Nombre: {usuario_nombre}
+📧 Email: {usuario_email}
+📱 Teléfono: {usuario_telefono}
+{compartido}
+{instagram}
+
+Adjunto el comprobante de pago.`
+  ,
+  whatsappPaidTemplate: `Hola {usuario_nombre}!
+Te confirmamos que tu cupo ya quedÃ³ completo porque registramos el pago.
+
+Evento: {evento}
+Stand: {stand_numero} - {stand_nombre}
+CategorÃ­a: {categoria}
+Importe: {importe}
+
+Muchas gracias.`
+}
+
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 function reducer(state, action) {
   switch (action.type) {
@@ -170,6 +198,12 @@ function reducer(state, action) {
       return { ...state, currentUser: null }
     case 'REGISTER':
       return { ...state, users: [...state.users, action.user], currentUser: action.user }
+    case 'ADD_USER':
+      return { ...state, users: [...state.users, action.user] }
+    case 'UPDATE_USER':
+      return { ...state, users: state.users.map(u => u.id === action.user.id ? action.user : u) }
+    case 'DELETE_USER':
+      return { ...state, users: state.users.filter(u => u.id !== action.id) }
     case 'ADD_RESERVATION':
       return {
         ...state,
@@ -263,6 +297,22 @@ function reducer(state, action) {
         ),
       }
     }
+    case 'UPDATE_GLOBAL_SETTINGS':
+      return { ...state, settings: { ...state.settings, ...action.settings } }
+    case 'SET_DATA':
+      return { 
+        ...state, 
+        events: action.events, 
+        categories: action.categories,
+        reservations: action.reservations,
+        users: action.users ?? state.users,
+        settings: action.settings ?? state.settings,
+        loading: false 
+      }
+    case 'SET_USER':
+      return { ...state, currentUser: action.user }
+    case 'DELETE_EVENT':
+      return { ...state, events: state.events.filter(ev => ev.id !== action.eventId) }
     default:
       return state
   }
@@ -270,35 +320,198 @@ function reducer(state, action) {
 
 const AppContext = createContext(null)
 
-function loadSession() {
+const STORAGE_KEY = 'standflow_full_state'
+
+function mapProfile(profile) {
+  return {
+    ...profile,
+    name: profile.name ?? profile.first_name ?? '',
+    lastName: profile.lastName ?? profile.last_name ?? '',
+  }
+}
+
+async function fetchAllRows(table, orderColumn = 'id', pageSize = 1000) {
+  const rows = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order(orderColumn, { ascending: true })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: null, error }
+
+    rows.push(...(data || []))
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+
+  return { data: rows, error: null }
+}
+
+function applyReservationsToStands(stands, reservations) {
+  const activeStatuses = ['pending', 'paid', 'reserved']
+  const standStatusById = new Map()
+  const standCategoryById = new Map()
+
+  reservations.forEach(reservation => {
+    if (!activeStatuses.includes(reservation.status)) return
+
+    const current = standStatusById.get(reservation.standId)
+    const nextStatus = reservation.status === 'paid' || reservation.status === 'reserved' ? 'reserved' : 'pending'
+    if (!current || current === 'pending') {
+      standStatusById.set(reservation.standId, nextStatus)
+    }
+    if (reservation.categoryId) {
+      standCategoryById.set(reservation.standId, reservation.categoryId)
+    }
+  })
+
+  return stands.map(stand => ({
+    ...stand,
+    status: standStatusById.get(stand.id) || stand.status,
+    categoryId: standCategoryById.get(stand.id) || stand.categoryId,
+  }))
+}
+
+function loadState() {
   try {
-    const saved = localStorage.getItem('standsapp_user')
-    return saved ? JSON.parse(saved) : null
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return null
+    return JSON.parse(saved)
   } catch { return null }
 }
 
 function persistingDispatch(dispatch) {
   return (action) => {
     dispatch(action)
-    if (action.type === 'LOGIN' || action.type === 'REGISTER') {
-      localStorage.setItem('standsapp_user', JSON.stringify(action.user))
-    }
-    if (action.type === 'LOGOUT') {
-      localStorage.removeItem('standsapp_user')
-    }
+    // After any action, we trigger a save of the current state
+    // Note: Due to how useReducer works, the state saved here might be the PREVIOUS one
+    // if not careful. A better way is to save in the next tick or use a middle-ware approach.
+    // For this simple app, we'll handle it inside the Provider or with a sync trick.
   }
 }
 
 export function AppProvider({ children }) {
-  const [state, rawDispatch] = useReducer(reducer, {
-    currentUser: loadSession(),
-    users: INITIAL_USERS,
-    events: INITIAL_EVENTS,
-    reservations: INITIAL_RESERVATIONS,
-    categories: INITIAL_CATEGORIES,
-  })
+  const initialState = {
+    currentUser: null,
+    users: INITIAL_USERS, // Restauramos los usuarios de prueba
+    events: [],
+    reservations: [],
+    categories: [],
+    settings: INITIAL_SETTINGS,
+    loading: true
+  }
 
-  const dispatch = persistingDispatch(rawDispatch)
+  const [state, dispatch] = useReducer(reducer, initialState)
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // 1. Verificar sesión actual
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+          if (profile?.role_id === -1) {
+            await supabase.auth.signOut()
+            dispatch({ type: 'SET_USER', user: null })
+          } else {
+            dispatch({ type: 'SET_USER', user: { ...session.user, ...mapProfile(profile) } })
+          }
+        }
+
+        // 2. Escuchar cambios en la sesión
+        supabase.auth.onAuthStateChange((_event, session) => {
+          setTimeout(async () => {
+            if (session) {
+              const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+              if (profile?.role_id === -1) {
+                await supabase.auth.signOut()
+                dispatch({ type: 'SET_USER', user: null })
+              } else {
+                dispatch({ type: 'SET_USER', user: { ...session.user, ...mapProfile(profile) } })
+              }
+            } else {
+              dispatch({ type: 'SET_USER', user: null })
+            }
+          }, 0)
+        })
+
+        // 3. Cargar datos de la app
+        const [
+          { data: categories, error: catError },
+          { data: events, error: evError },
+          { data: stands, error: stError },
+          { data: reservations, error: resError },
+          { data: profiles, error: profilesError },
+          { data: appSettings, error: settingsError }
+        ] = await Promise.all([
+          fetchAllRows('categories', 'id'),
+          fetchAllRows('events', 'date'),
+          fetchAllRows('stands', 'id'),
+          fetchAllRows('reservations', 'created_at'),
+          fetchAllRows('profiles', 'id'),
+          supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle()
+        ])
+
+        if (catError || evError || stError || resError || profilesError) {
+          console.error("Error cargando datos de Supabase:", { catError, evError, stError, resError, profilesError })
+          return
+        }
+
+        if (settingsError) {
+          console.warn("No se pudo cargar app_settings; se usan ajustes por defecto:", settingsError)
+        }
+
+        // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
+        const mappedCategories = (categories || []).map(cat => ({
+          ...cat,
+          // (los campos id, name, color ya coinciden)
+        }))
+
+        const mappedStands = (stands || []).map(s => ({
+          ...s,
+          categoryId: s.category_id, // Importante: convertir a camelCase
+          eventId: s.event_id
+        }))
+
+        const mappedReservations = (reservations || []).map(r => ({
+          ...r,
+          eventId: r.event_id,
+          standId: r.stand_id,
+          standName: r.stand_name,
+          sharedWith: r.shared_with,
+          categoryId: r.category_id,
+          createdAt: r.created_at
+        }))
+
+        const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)
+        const mappedUsers = (profiles || []).filter(p => p.role_id !== -1).map(mapProfile)
+
+        const eventsWithStands = (events || []).map(ev => ({
+          ...ev,
+          mapImage: ev.map_image, // Convertir map_image -> mapImage
+          paymentInstructions: ev.payment_instructions,
+          stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id)
+        }))
+
+        dispatch({ 
+          type: 'SET_DATA', 
+          events: eventsWithStands, 
+          categories: mappedCategories, 
+          reservations: mappedReservations,
+          users: mappedUsers,
+          settings: appSettings?.value ? { ...INITIAL_SETTINGS, ...appSettings.value } : INITIAL_SETTINGS
+        })
+      } catch (err) {
+        console.error("Error crítico en fetchData:", err)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
 }

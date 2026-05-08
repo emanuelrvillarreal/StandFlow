@@ -1,26 +1,46 @@
 import { useState } from 'react'
 import { useApp } from '../store'
+import { supabase } from '../lib/supabase'
 import { X, ArrowLeft, CheckCircle, MessageCircle } from 'lucide-react'
+
+function toReservationRow(reservation) {
+  return {
+    id: reservation.id,
+    event_id: reservation.eventId,
+    stand_id: reservation.standId,
+    user_id: reservation.userId,
+    stand_name: reservation.standName,
+    shared: reservation.shared,
+    shared_with: reservation.sharedWith,
+    instagram: reservation.instagram,
+    category_id: reservation.categoryId,
+    status: reservation.status,
+    amount: reservation.amount,
+    created_at: reservation.createdAt,
+  }
+}
 
 export default function ReservationFlow({ stand, event, onClose }) {
   const { state, dispatch } = useApp()
   const [step, setStep] = useState('form') // form | confirm
   const [form, setForm] = useState({ standName:'', shared:'no', sharedWith:'', instagram:'', categoryId:'' })
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [reservation, setReservation] = useState(null)
 
   const { currentUser, categories } = state
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!form.standName.trim()) { setError('El nombre del stand es obligatorio'); return }
     if (!form.categoryId) { setError('Seleccioná una categoría'); return }
     if (form.shared === 'si' && !form.sharedWith.trim()) { setError('Indicá con quién compartís'); return }
     setError('')
+    setSubmitting(true)
 
     const res = {
-      id: 'r' + Date.now(),
+      id: crypto.randomUUID(),
       eventId: event.id,
       standId: stand.id,
       userId: currentUser.id,
@@ -33,34 +53,80 @@ export default function ReservationFlow({ stand, event, onClose }) {
       amount: stand.price,
       createdAt: new Date().toISOString(),
     }
+
+    const { error: reservationError } = await supabase.from('reservations').insert(toReservationRow(res))
+    if (reservationError) {
+      setError(`No se pudo guardar la reserva: ${reservationError.message}`)
+      setSubmitting(false)
+      return
+    }
+
+    const { error: standError } = await supabase
+      .from('stands')
+      .update({ status: 'pending', category_id: form.categoryId })
+      .eq('id', stand.id)
+
+    if (standError) {
+      await supabase.from('reservations').delete().eq('id', res.id)
+      setError(`No se pudo actualizar el estado del stand: ${standError.message}`)
+      setSubmitting(false)
+      return
+    }
+
     dispatch({ type: 'ADD_RESERVATION', reservation: res })
     setReservation(res)
     setStep('confirm')
+    setSubmitting(false)
   }
 
   function buildWhatsApp() {
     const cat = categories.find(c => c.id === form.categoryId)
-    const msg = encodeURIComponent(
+    const settings = state.settings || { whatsappNumber: event.whatsapp, whatsappTemplate: '' }
+    
+    let msg = settings.whatsappTemplate || (
       `¡Hola! Quiero confirmar mi reserva:\n\n` +
-      `📍 Evento: ${event.name}\n` +
-      `🏷️ Stand: ${stand.number} - ${form.standName}\n` +
-      `📂 Categoría: ${cat?.name || '-'}\n` +
-      `💰 Importe: $${stand.price.toLocaleString('es-AR')}\n` +
-      `👤 Nombre: ${currentUser.name} ${currentUser.lastName}\n` +
-      `📧 Email: ${currentUser.email}\n` +
-      `📱 Teléfono: ${currentUser.phone}\n` +
-      (form.shared === 'si' ? `🤝 Comparte con: ${form.sharedWith}\n` : '') +
-      (form.instagram ? `📸 Instagram: ${form.instagram}\n` : '') +
-      `\nAdjunto el comprobante de pago.`
+      `📍 Evento: {evento}\n` +
+      `🏷️ Stand: {stand_numero} - {stand_nombre}\n` +
+      `📂 Categoría: {categoria}\n` +
+      `💰 Importe: {importe}\n` +
+      `👤 Nombre: {usuario_nombre}\n` +
+      `📧 Email: {usuario_email}\n` +
+      `📱 Teléfono: {usuario_telefono}\n` +
+      `{compartido}\n` +
+      `{instagram}\n\n` +
+      `Adjunto el comprobante de pago.`
     )
-    window.open(`https://wa.me/${event.whatsapp}?text=${msg}`, '_blank')
+
+    const sharedText = form.shared === 'si' ? `🤝 Comparte con: ${form.sharedWith}` : ''
+    const instaText = form.instagram ? `📸 Instagram: ${form.instagram}` : ''
+
+    const replacements = {
+      '{evento}': event.name,
+      '{stand_numero}': stand.number,
+      '{stand_nombre}': form.standName,
+      '{categoria}': cat?.name || '-',
+      '{importe}': `$${stand.price.toLocaleString('es-AR')}`,
+      '{usuario_nombre}': `${currentUser.name} ${currentUser.lastName}`,
+      '{usuario_email}': currentUser.email,
+      '{usuario_telefono}': currentUser.phone,
+      '{compartido}': sharedText,
+      '{instagram}': instaText
+    }
+
+    Object.entries(replacements).forEach(([tag, val]) => {
+      msg = msg.replaceAll(tag, val)
+    })
+
+    window.open(`https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   if (step === 'confirm') {
     const cat = categories.find(c => c.id === form.categoryId)
+    const paymentInstructions = event.paymentInstructions || 'Enviá el comprobante de pago por WhatsApp para confirmar tu reserva.'
     return (
       <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-        <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="overflow-y-auto">
           <div className="px-6 pt-8 pb-4 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="text-green-500" size={32}/>
@@ -93,13 +159,16 @@ export default function ReservationFlow({ stand, event, onClose }) {
           </div>
 
           <div className="mx-6 bg-yellow-50 text-yellow-800 text-sm px-4 py-3 rounded-xl mb-5">
-            Para confirmarla, enviá el comprobante por WhatsApp.
+            <p className="font-semibold mb-1">Datos para el pago</p>
+            <p>{paymentInstructions}</p>
           </div>
 
-          <div className="px-6 pb-6 space-y-3">
+          </div>
+
+          <div className="px-6 py-4 space-y-3 border-t bg-white flex-shrink-0">
             <button onClick={buildWhatsApp}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition">
-              <MessageCircle size={18}/> Enviar mensaje por WhatsApp
+              <MessageCircle size={18}/> Confirmar por WhatsApp
             </button>
             <button onClick={onClose}
               className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition">
@@ -186,9 +255,9 @@ export default function ReservationFlow({ stand, event, onClose }) {
         </form>
 
         <div className="px-6 pb-6 pt-2 flex-shrink-0 border-t">
-          <button type="submit" onClick={handleSubmit}
-            className="w-full bg-violet-600 hover:bg-violet-700 text-white font-semibold py-3 rounded-xl transition">
-            Confirmar reserva
+          <button type="submit" onClick={handleSubmit} disabled={submitting}
+            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition">
+            {submitting ? 'Reservando...' : 'Confirmar reserva'}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { Store, ArrowLeft } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export default function RegisterPage() {
   const { dispatch } = useApp()
@@ -9,16 +10,41 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ name:'', lastName:'', email:'', phone:'', password:'', confirm:'' })
   const [error, setError] = useState('')
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    setError('')
     if (form.password !== form.confirm) { setError('Las contraseñas no coinciden'); return }
     if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
-    const newUser = {
-      id: 'u' + Date.now(), name: form.name, lastName: form.lastName,
-      email: form.email, phone: form.phone, password: form.password, role: 'user',
+    
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: {
+          name: form.name,
+          lastName: form.lastName,
+          phone: form.phone
+        }
+      }
+    })
+
+    if (signUpError) {
+      setError(signUpError.message)
+      return
     }
-    dispatch({ type: 'REGISTER', user: newUser })
-    navigate('/events')
+
+    if (data.user) {
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        first_name: form.name,
+        last_name: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        role: 'user',
+        role_id: 2
+      }, { onConflict: 'id' })
+      navigate('/events')
+    }
   }
 
   const f = (k) => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })

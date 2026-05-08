@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { Eye, EyeOff, Store } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
   const { state, dispatch } = useApp()
@@ -9,13 +10,53 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [sendingRecovery, setSendingRecovery] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    const user = state.users.find(u => u.email === form.email && u.password === form.password)
-    if (!user) { setError('Email o contraseña incorrectos'); return }
-    dispatch({ type: 'LOGIN', user })
-    navigate(user.role === 'admin' ? '/admin' : '/events')
+    setError('')
+    setMessage('')
+    
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+      email: form.email,
+      password: form.password
+    })
+
+    if (loginError) {
+      setError('Email o contraseña incorrectos')
+      return
+    }
+
+    if (data.user) {
+      // El onAuthStateChange en el store se encargará de actualizar el usuario.
+      // Aquí solo redirigimos.
+      const { data: profile } = await supabase.from('profiles').select('role_id').eq('id', data.user.id).single()
+      navigate(profile?.role_id === 1 ? '/admin' : '/events')
+    }
+  }
+
+  async function handlePasswordRecovery() {
+    setError('')
+    setMessage('')
+
+    if (!form.email.trim()) {
+      setError('Ingresá tu email para recuperar la contraseña')
+      return
+    }
+
+    setSendingRecovery(true)
+    const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(form.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setSendingRecovery(false)
+
+    if (recoveryError) {
+      setError(recoveryError.message)
+      return
+    }
+
+    setMessage('Te enviamos un email para recuperar tu contraseña.')
   }
 
   return (
@@ -35,6 +76,9 @@ export default function LoginPage() {
           {error && (
             <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>
           )}
+          {message && (
+            <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm">{message}</div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -47,7 +91,17 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <label className="block text-sm font-medium text-gray-700">Contraseña</label>
+                <button
+                  type="button"
+                  onClick={handlePasswordRecovery}
+                  disabled={sendingRecovery}
+                  className="text-xs font-medium text-violet-600 hover:underline disabled:opacity-60"
+                >
+                  {sendingRecovery ? 'Enviando...' : 'Olvidé mi contraseña'}
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'} required

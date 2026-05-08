@@ -29,18 +29,43 @@ export default function MyReservationsPage() {
     const stand = getStand(r.eventId, r.standId)
     if (!ev) return
     const cat = getCat(r.categoryId)
-    const msg = encodeURIComponent(
+    const settings = state.settings || { whatsappNumber: ev.whatsapp, whatsappTemplate: '' }
+    
+    let msg = settings.whatsappTemplate || (
       `¡Hola! Quiero confirmar mi reserva:\n\n` +
-      `📍 Evento: ${ev.name}\n` +
-      `🏷️ Stand: ${stand?.number || r.standId} - ${r.standName}\n` +
-      `📂 Categoría: ${cat?.name || '-'}\n` +
-      `💰 Importe: $${r.amount.toLocaleString('es-AR')}\n` +
-      `👤 Nombre: ${currentUser.name} ${currentUser.lastName}\n` +
-      `📧 Email: ${currentUser.email}\n` +
-      (r.shared ? `🤝 Comparte con: ${r.sharedWith}\n` : '') +
-      `\nAdjunto el comprobante de pago.`
+      `📍 Evento: {evento}\n` +
+      `🏷️ Stand: {stand_numero} - {stand_nombre}\n` +
+      `📂 Categoría: {categoria}\n` +
+      `💰 Importe: {importe}\n` +
+      `👤 Nombre: {usuario_nombre}\n` +
+      `📧 Email: {usuario_email}\n` +
+      `📱 Teléfono: {usuario_telefono}\n` +
+      `{compartido}\n` +
+      `{instagram}\n\n` +
+      `Adjunto el comprobante de pago.`
     )
-    window.open(`https://wa.me/${ev.whatsapp}?text=${msg}`, '_blank')
+
+    const sharedText = r.shared ? `🤝 Comparte con: ${r.sharedWith}` : ''
+    const instaText = r.instagram ? `📸 Instagram: ${r.instagram}` : ''
+
+    const replacements = {
+      '{evento}': ev.name,
+      '{stand_numero}': stand?.number || r.standId,
+      '{stand_nombre}': r.standName,
+      '{categoria}': cat?.name || '-',
+      '{importe}': `$${r.amount.toLocaleString('es-AR')}`,
+      '{usuario_nombre}': `${currentUser.name} ${currentUser.lastName}`,
+      '{usuario_email}': currentUser.email,
+      '{usuario_telefono}': currentUser.phone,
+      '{compartido}': sharedText,
+      '{instagram}': instaText
+    }
+
+    Object.entries(replacements).forEach(([tag, val]) => {
+      msg = msg.replaceAll(tag, val)
+    })
+
+    window.open(`https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   return (
