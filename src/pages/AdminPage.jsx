@@ -239,6 +239,47 @@ export default function AdminPage() {
     }
 
     dispatch({ type: 'UPDATE_RESERVATION_STATUS', id: resId, status: newStatus })
+    if (reservationDetail?.reservation.id === resId) {
+      setReservationDetail({
+        ...reservationDetail,
+        reservation: { ...reservationDetail.reservation, status: newStatus },
+      })
+    }
+  }
+
+  async function handleDeleteReservation(reservation) {
+    if (reservation.status !== 'cancelled') {
+      alert('Primero tenés que cancelar la reserva para poder eliminarla.')
+      return
+    }
+
+    const confirmed = window.confirm(`¿Eliminar la reserva "${reservation.standName}"? Esta acción no se puede deshacer.`)
+    if (!confirmed) return
+
+    const { error: reservationError } = await supabase
+      .from('reservations')
+      .delete()
+      .eq('id', reservation.id)
+
+    if (reservationError) {
+      alert(`No se pudo eliminar la reserva: ${reservationError.message}`)
+      return
+    }
+
+    const { error: standError } = await supabase
+      .from('stands')
+      .update({ status: 'available', category_id: null })
+      .eq('id', reservation.standId)
+
+    if (standError) {
+      alert(`La reserva se eliminó, pero no se pudo liberar el stand: ${standError.message}`)
+      return
+    }
+
+    dispatch({ type: 'DELETE_RESERVATION', id: reservation.id })
+    if (reservationDetail?.reservation.id === reservation.id) {
+      setReservationDetail(null)
+    }
   }
 
   function handleAddCategory() {
@@ -428,7 +469,10 @@ export default function AdminPage() {
     const confirmed = window.confirm(`¿Eliminar el usuario "${user.name} ${user.lastName}"?`)
     if (!confirmed) return
 
-    const { error } = await supabase.from('profiles').update({ role_id: -1 }).eq('id', user.id)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role_id: -1, role: 'deleted' })
+      .eq('id', user.id)
     if (error) {
       alert(`No se pudo eliminar el usuario: ${error.message}`)
       return
@@ -728,6 +772,12 @@ export default function AdminPage() {
                           <Clock size={12}/> Reactivar
                         </button>
                       )}
+                      {r.status === 'cancelled' && (
+                        <button onClick={() => handleDeleteReservation(r)}
+                          className="flex items-center gap-1 text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition">
+                          <Trash2 size={12}/> Eliminar
+                        </button>
+                      )}
                       {user?.phone && (
                         <button onClick={() => notifyReservationPaid(r, ev, stand, user)}
                           className="flex items-center gap-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg transition">
@@ -1012,6 +1062,24 @@ export default function AdminPage() {
                 <button onClick={() => handleStatusChange(reservationDetail.reservation.id, 'paid')}
                   className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
                   <CheckCircle size={14}/> Marcar pagado
+                </button>
+              )}
+              {reservationDetail.reservation.status !== 'cancelled' && (
+                <button onClick={() => handleStatusChange(reservationDetail.reservation.id, 'cancelled')}
+                  className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-600 px-4 py-2 rounded-xl text-sm font-medium transition">
+                  <XCircle size={14}/> Cancelar
+                </button>
+              )}
+              {reservationDetail.reservation.status === 'cancelled' && (
+                <button onClick={() => handleStatusChange(reservationDetail.reservation.id, 'pending')}
+                  className="flex items-center gap-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-4 py-2 rounded-xl text-sm font-medium transition">
+                  <Clock size={14}/> Reactivar
+                </button>
+              )}
+              {reservationDetail.reservation.status === 'cancelled' && (
+                <button onClick={() => handleDeleteReservation(reservationDetail.reservation)}
+                  className="flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
+                  <Trash2 size={14}/> Eliminar
                 </button>
               )}
               {reservationDetail.user?.phone && (

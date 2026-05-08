@@ -222,6 +222,7 @@ function reducer(state, action) {
     case 'UPDATE_RESERVATION_STATUS': {
       const { id, status } = action
       const res = state.reservations.find(r => r.id === id)
+      if (!res) return state
       let newStandStatus = status === 'paid' ? 'reserved' : status === 'cancelled' ? 'available' : 'pending'
       return {
         ...state,
@@ -232,6 +233,25 @@ function reducer(state, action) {
                 ...ev,
                 stands: ev.stands.map(st =>
                   st.id === res.standId ? { ...st, status: newStandStatus } : st
+                ),
+              }
+            : ev
+        ),
+      }
+    }
+    case 'DELETE_RESERVATION': {
+      const res = state.reservations.find(r => r.id === action.id)
+      if (!res) return state
+
+      return {
+        ...state,
+        reservations: state.reservations.filter(r => r.id !== action.id),
+        events: state.events.map(ev =>
+          ev.id === res.eventId
+            ? {
+                ...ev,
+                stands: ev.stands.map(st =>
+                  st.id === res.standId ? { ...st, status: 'available', categoryId: null } : st
                 ),
               }
             : ev
