@@ -223,7 +223,7 @@ function reducer(state, action) {
       const { id, status } = action
       const res = state.reservations.find(r => r.id === id)
       if (!res) return state
-      let newStandStatus = status === 'paid' ? 'reserved' : status === 'cancelled' ? 'available' : 'pending'
+      let newStandStatus = (status === 'paid' || status === 'deposit_paid') ? 'reserved' : status === 'cancelled' ? 'available' : 'pending'
       return {
         ...state,
         reservations: state.reservations.map(r => r.id === id ? { ...r, status } : r),
@@ -325,10 +325,15 @@ function reducer(state, action) {
         events: action.events, 
         categories: action.categories,
         reservations: action.reservations,
+        expenses: action.expenses || [],
         users: action.users ?? state.users,
         settings: action.settings ?? state.settings,
         loading: false 
       }
+    case 'ADD_EXPENSE':
+      return { ...state, expenses: [...state.expenses, action.expense] }
+    case 'DELETE_EXPENSE':
+      return { ...state, expenses: state.expenses.filter(e => e.id !== action.id) }
     case 'SET_USER':
       return { ...state, currentUser: action.user }
     case 'DELETE_EVENT':
@@ -376,7 +381,7 @@ async function fetchAllRows(table, orderColumn = 'id', pageSize = 1000) {
 }
 
 function applyReservationsToStands(stands, reservations) {
-  const activeStatuses = ['pending', 'paid', 'reserved']
+  const activeStatuses = ['pending', 'deposit_paid', 'paid', 'reserved']
   const standStatusById = new Map()
   const standCategoryById = new Map()
 
@@ -384,7 +389,7 @@ function applyReservationsToStands(stands, reservations) {
     if (!activeStatuses.includes(reservation.status)) return
 
     const current = standStatusById.get(reservation.standId)
-    const nextStatus = reservation.status === 'paid' || reservation.status === 'reserved' ? 'reserved' : 'pending'
+    const nextStatus = (reservation.status === 'paid' || reservation.status === 'reserved' || reservation.status === 'deposit_paid') ? 'reserved' : 'pending'
     if (!current || current === 'pending') {
       standStatusById.set(reservation.standId, nextStatus)
     }
@@ -470,6 +475,7 @@ export function AppProvider({ children }) {
           { data: stands, error: stError },
           { data: reservations, error: resError },
           { data: profiles, error: profilesError },
+          { data: expenses, error: expError },
           { data: appSettings, error: settingsError }
         ] = await Promise.all([
           fetchAllRows('categories', 'id'),
@@ -477,6 +483,7 @@ export function AppProvider({ children }) {
           fetchAllRows('stands', 'id'),
           fetchAllRows('reservations', 'created_at'),
           fetchAllRows('profiles', 'id'),
+          fetchAllRows('expenses', 'created_at'),
           supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle()
         ])
 
@@ -485,9 +492,15 @@ export function AppProvider({ children }) {
           return
         }
 
+        if (expError) {
+          console.warn("La tabla expenses aún no existe o falló:", expError)
+        }
+
         if (settingsError) {
           console.warn("No se pudo cargar app_settings; se usan ajustes por defecto:", settingsError)
         }
+
+        // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
 
         // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
         const mappedCategories = (categories || []).map(cat => ({
@@ -505,6 +518,7 @@ export function AppProvider({ children }) {
           ...r,
           eventId: r.event_id,
           standId: r.stand_id,
+          userId: r.user_id,
           standName: r.stand_name,
           sharedWith: r.shared_with,
           categoryId: r.category_id,
@@ -513,7 +527,6 @@ export function AppProvider({ children }) {
 
         const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)
         const mappedUsers = (profiles || []).filter(p => p.role_id !== -1).map(mapProfile)
-
         const eventsWithStands = (events || []).map(ev => ({
           ...ev,
           mapImage: ev.map_image, // Convertir map_image -> mapImage
@@ -526,6 +539,7 @@ export function AppProvider({ children }) {
           events: eventsWithStands, 
           categories: mappedCategories, 
           reservations: mappedReservations,
+          expenses: expenses || [],
           users: mappedUsers,
           settings: appSettings?.value ? { ...INITIAL_SETTINGS, ...appSettings.value } : INITIAL_SETTINGS
         })

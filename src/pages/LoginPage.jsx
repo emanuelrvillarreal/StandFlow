@@ -125,20 +125,6 @@ export default function LoginPage() {
             ¿No tenés cuenta?{' '}
             <Link to="/register" className="text-violet-600 font-medium hover:underline">Registrarse</Link>
           </p>
-
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-xs text-gray-400 text-center mb-2">Acceso rápido demo:</p>
-            <div className="flex gap-2">
-              <button onClick={() => { setForm({email:'admin@stands.com', password:'admin123'}); }}
-                className="flex-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 py-2 rounded-lg transition">
-                Admin
-              </button>
-              <button onClick={() => { setForm({email:'juan@test.com', password:'123456'}); }}
-                className="flex-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 py-2 rounded-lg transition">
-                Usuario
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

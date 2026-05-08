@@ -23,13 +23,14 @@ function toReservationRow(reservation) {
 export default function ReservationFlow({ stand, event, onClose }) {
   const { state, dispatch } = useApp()
   const [step, setStep] = useState('form') // form | confirm
-  const [form, setForm] = useState({ standName:'', shared:'no', sharedWith:'', instagram:'', categoryId:'' })
+  const [form, setForm] = useState({ standName:'', shared:'no', sharedWith:'', instagram:'', categoryId:'', paymentType: 'full' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [reservation, setReservation] = useState(null)
 
   const { currentUser, categories } = state
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
+  const calculatedAmount = form.paymentType === 'deposit' ? stand.price / 2 : stand.price
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -50,7 +51,7 @@ export default function ReservationFlow({ stand, event, onClose }) {
       instagram: form.instagram,
       categoryId: form.categoryId,
       status: 'pending',
-      amount: stand.price,
+      amount: calculatedAmount,
       createdAt: new Date().toISOString(),
     }
 
@@ -248,9 +249,25 @@ export default function ReservationFlow({ stand, event, onClose }) {
             </>
           )}
 
-          <div className="bg-gray-50 rounded-xl p-4 flex justify-between items-center">
-            <span className="text-gray-500 text-sm">Importe</span>
-            <span className="font-bold text-xl text-violet-600">${stand.price.toLocaleString('es-AR')}</span>
+          <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Modo de pago</label>
+              <div className="flex gap-3">
+                {[
+                  { id: 'full', label: 'Totalidad (100%)' },
+                  { id: 'deposit', label: 'Seña (50%)' }
+                ].map(v => (
+                  <label key={v.id} className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded-xl cursor-pointer transition ${form.paymentType===v.id?'border-violet-500 bg-violet-100 text-violet-700':'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
+                    <input type="radio" name="paymentType" value={v.id} checked={form.paymentType===v.id} onChange={() => setForm({...form, paymentType:v.id})} className="sr-only"/>
+                    <span className="text-sm font-medium">{v.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-between items-center border-t pt-4 border-gray-200">
+              <span className="text-gray-500 text-sm">A pagar ahora</span>
+              <span className="font-bold text-xl text-violet-600">${calculatedAmount.toLocaleString('es-AR')}</span>
+            </div>
           </div>
         </form>
 

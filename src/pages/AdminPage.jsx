@@ -10,9 +10,10 @@ import {
   ClipboardList, Image as ImageIcon, Copy, Upload, MapPin
 } from 'lucide-react'
 
-const STATUS_LABELS = { pending:'Pendiente', paid:'Pagado', cancelled:'Cancelado', reserved:'Reservado' }
+const STATUS_LABELS = { pending:'Pendiente', deposit_paid:'Seña Paga', paid:'Pagado', cancelled:'Cancelado', reserved:'Reservado' }
 const STATUS_STYLES = {
   pending:   'bg-yellow-50 text-yellow-700 border border-yellow-200',
+  deposit_paid: 'bg-orange-50 text-orange-700 border border-orange-200',
   paid:      'bg-green-50 text-green-700 border border-green-200',
   cancelled: 'bg-red-50 text-red-600 border border-red-200',
   reserved:  'bg-blue-50 text-blue-700 border border-blue-200',
@@ -105,13 +106,14 @@ export default function AdminPage() {
   const { state, dispatch } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
-  const { events, reservations, users, categories, currentUser } = state
+  const { events, reservations, users, categories, currentUser, expenses } = state
   const [tab, setTab] = useState('dashboard')
   const [filterEventId, setFilterEventId] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [reservationPage, setReservationPage] = useState(1)
   const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6' })
+  const [expenseForm, setExpenseForm] = useState({ description: '', amount: '' })
   const [editingCat, setEditingCat] = useState(null)
   const [settingsForm, setSettingsForm] = useState(state.settings)
   const [showEventModal, setShowEventModal] = useState(false)
@@ -153,8 +155,11 @@ export default function AdminPage() {
   const allStands = events.flatMap(e => e.stands)
   const totalAvailable = allStands.filter(s => s.status === 'available').length
   const totalPending = reservations.filter(r => r.status === 'pending').length
+  const totalDeposit = reservations.filter(r => r.status === 'deposit_paid').length
   const totalPaid = reservations.filter(r => r.status === 'paid').length
-  const totalRevenue = reservations.filter(r => r.status === 'paid').reduce((s, r) => s + r.amount, 0)
+  const totalRevenue = reservations.filter(r => r.status === 'paid' || r.status === 'deposit_paid').reduce((s, r) => s + r.amount, 0)
+  const totalExpenses = (expenses || []).reduce((s, e) => s + Number(e.amount), 0)
+  const netRevenue = totalRevenue - totalExpenses
 
   const filteredRes = reservations.filter(r => {
     if (filterEventId !== 'all' && r.eventId !== filterEventId) return false
@@ -217,7 +222,7 @@ export default function AdminPage() {
     const reservation = reservations.find(r => r.id === resId)
     if (!reservation) return
 
-    const standStatus = newStatus === 'paid' ? 'reserved' : newStatus === 'cancelled' ? 'available' : 'pending'
+    const standStatus = (newStatus === 'paid' || newStatus === 'deposit_paid') ? 'reserved' : newStatus === 'cancelled' ? 'available' : 'pending'
     const { error: reservationError } = await supabase
       .from('reservations')
       .update({ status: newStatus })
@@ -282,15 +287,67 @@ export default function AdminPage() {
     }
   }
 
-  function handleAddCategory() {
+  async function handleAddCategory() {
     if (!catForm.name.trim()) return
-    dispatch({ type: 'ADD_CATEGORY', category: { id: 'cat' + Date.now(), ...catForm } })
+    const newCat = { id: createUuid(), ...catForm }
+    const { error } = await supabase.from('categories').insert(newCat)
+    if (error) {
+      alert(`No se pudo crear la categoría: ${error.message}`)
+      return
+    }
+    dispatch({ type: 'ADD_CATEGORY', category: newCat })
     setCatForm({ name: '', color: '#3B82F6' })
   }
 
-  function handleSaveCat() {
+  async function handleSaveCat() {
+    const { error } = await supabase
+      .from('categories')
+      .update({ name: editingCat.name, color: editingCat.color })
+      .eq('id', editingCat.id)
+    if (error) {
+      alert(`No se pudo actualizar la categoría: ${error.message}`)
+      return
+    }
     dispatch({ type: 'UPDATE_CATEGORY', category: editingCat })
     setEditingCat(null)
+  }
+
+  async function handleDeleteCategory(cat) {
+    const confirmed = window.confirm(`¿Seguro que querés eliminar la categoría "${cat.name}"?`)
+    if (!confirmed) return
+    const { error } = await supabase.from('categories').delete().eq('id', cat.id)
+    if (error) {
+      alert(`No se pudo eliminar la categoría: ${error.message}`)
+      return
+    }
+    dispatch({ type: 'DELETE_CATEGORY', id: cat.id })
+  }
+
+  async function handleAddExpense() {
+    if (!expenseForm.description.trim() || !expenseForm.amount) return
+    const newExpense = {
+      id: createUuid(),
+      description: expenseForm.description,
+      amount: Number(expenseForm.amount),
+      created_at: new Date().toISOString()
+    }
+    const { error } = await supabase.from('expenses').insert(newExpense)
+    if (error) {
+      alert(`No se pudo registrar egreso: ${error.message}`)
+      return
+    }
+    dispatch({ type: 'ADD_EXPENSE', expense: newExpense })
+    setExpenseForm({ description: '', amount: '' })
+  }
+
+  async function handleDeleteExpense(id) {
+    if (!window.confirm('¿Seguro que querés eliminar este egreso?')) return
+    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    if (error) {
+      alert(`No se pudo eliminar: ${error.message}`)
+      return
+    }
+    dispatch({ type: 'DELETE_EXPENSE', id })
   }
 
   async function handleCreateEvent() {
@@ -366,6 +423,18 @@ export default function AdminPage() {
     }
 
     dispatch({ type: 'DELETE_EVENT', eventId: event.id })
+  }
+
+  async function handleEditAlias(event) {
+    const newAlias = window.prompt("Ingresá las instrucciones de pago o CBU/Alias para este evento:", event.paymentInstructions || "")
+    if (newAlias !== null) {
+      const { error } = await supabase.from('events').update({ payment_instructions: newAlias }).eq('id', event.id)
+      if (error) {
+        alert("No se pudo actualizar: " + error.message)
+      } else {
+        dispatch({ type: 'UPDATE_EVENT_SETTINGS', eventId: event.id, settings: { paymentInstructions: newAlias } })
+      }
+    }
   }
 
   function openCreateUserModal() {
@@ -503,6 +572,7 @@ export default function AdminPage() {
     { id:'dashboard', label:'Dashboard', icon: LayoutDashboard },
     { id:'events', label:'Eventos', icon: Calendar },
     { id:'reservations', label:'Reservas', icon: ClipboardList },
+    { id:'finances', label:'Finanzas', icon: TrendingUp },
     { id:'categories', label:'Categorías', icon: Tag },
     { id:'users', label:'Usuarios', icon: Users },
     { id:'settings', label:'Ajustes', icon: Settings },
@@ -547,12 +617,15 @@ export default function AdminPage() {
         {/* ── Dashboard ── */}
         {tab === 'dashboard' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
               {[
                 { label:'Pendientes', value: totalPending, icon: Clock, color:'text-yellow-600 bg-yellow-50' },
+                { label:'Señas Pagas', value: totalDeposit, icon: CheckCircle, color:'text-orange-600 bg-orange-50' },
                 { label:'Pagados', value: totalPaid, icon: CheckCircle, color:'text-green-600 bg-green-50' },
                 { label:'Disponibles', value: totalAvailable, icon: Map, color:'text-blue-600 bg-blue-50' },
-                { label:'Recaudado', value: `$${totalRevenue.toLocaleString('es-AR')}`, icon: TrendingUp, color:'text-violet-600 bg-violet-50' },
+                { label:'Ingresos', value: `$${totalRevenue.toLocaleString('es-AR')}`, icon: TrendingUp, color:'text-emerald-600 bg-emerald-50' },
+                { label:'Egresos', value: `-$${totalExpenses.toLocaleString('es-AR')}`, icon: TrendingUp, color:'text-red-600 bg-red-50' },
+                { label:'Saldo Neto', value: `$${netRevenue.toLocaleString('es-AR')}`, icon: TrendingUp, color:'text-violet-600 bg-violet-50' },
               ].map(stat => (
                 <div key={stat.label} className="bg-white rounded-2xl shadow-sm border p-5">
                   <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center mb-3`}>
@@ -644,6 +717,10 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button onClick={() => handleEditAlias(ev)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Editar Alias / Instrucciones de pago">
+                      <Edit2 size={18}/>
+                    </button>
                     <button onClick={() => navigate(`/events/${ev.id}/map`)}
                       className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition" title="Ver Mapa">
                       <Map size={18}/>
@@ -754,7 +831,13 @@ export default function AdminPage() {
                         className="flex items-center gap-1 text-xs bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg transition">
                         <Eye size={12}/> Ver detalle
                       </button>
-                      {r.status !== 'paid' && (
+                      {r.status === 'pending' && (
+                        <button onClick={() => handleStatusChange(r.id, 'deposit_paid')}
+                          className="flex items-center gap-1 text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg transition">
+                          <CheckCircle size={12}/> Marcar seña
+                        </button>
+                      )}
+                      {(r.status !== 'paid' && r.status !== 'cancelled') && (
                         <button onClick={() => handleStatusChange(r.id, 'paid')}
                           className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg transition">
                           <CheckCircle size={12}/> Marcar pagado
@@ -788,6 +871,60 @@ export default function AdminPage() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Finanzas ── */}
+        {tab === 'finances' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Registrar Egreso de Dinero</h2>
+              <div className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1 w-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Descripción (Ej: Alquiler de salón, Publicidad)</label>
+                  <input type="text" value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" placeholder="Motivo del egreso..."/>
+                </div>
+                <div className="w-full sm:w-48">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Monto ($)</label>
+                  <input type="number" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" placeholder="0"/>
+                </div>
+                <button onClick={handleAddExpense} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-medium transition">
+                  Registrar Egreso
+                </button>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600 min-w-[600px]">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 font-medium text-gray-900">Fecha</th>
+                      <th className="px-6 py-4 font-medium text-gray-900">Descripción</th>
+                      <th className="px-6 py-4 font-medium text-gray-900 text-right">Monto</th>
+                      <th className="px-6 py-4 font-medium text-gray-900 w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(expenses || []).map(exp => (
+                      <tr key={exp.id} className="hover:bg-gray-50/50">
+                        <td className="px-6 py-4">{new Date(exp.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 font-medium text-gray-800">{exp.description}</td>
+                        <td className="px-6 py-4 text-right font-bold text-red-600">-${Number(exp.amount).toLocaleString('es-AR')}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => handleDeleteExpense(exp.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                            <Trash2 size={15}/>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!expenses || expenses.length === 0) && (
+                      <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No hay egresos registrados todavía.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -841,7 +978,7 @@ export default function AdminPage() {
                         className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition">
                         <Edit2 size={15}/>
                       </button>
-                      <button onClick={() => dispatch({ type:'DELETE_CATEGORY', id:cat.id })}
+                      <button onClick={() => handleDeleteCategory(cat)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
                         <Trash2 size={15}/>
                       </button>
