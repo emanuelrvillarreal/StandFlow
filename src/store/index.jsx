@@ -312,7 +312,11 @@ function reducer(state, action) {
     case 'SET_USER':
       return { ...state, currentUser: action.user }
     case 'DELETE_EVENT':
-      return { ...state, events: state.events.filter(ev => ev.id !== action.eventId) }
+      return {
+        ...state,
+        events: state.events.filter(ev => ev.id !== action.eventId),
+        reservations: state.reservations.filter(res => res.eventId !== action.eventId),
+      }
     default:
       return state
   }

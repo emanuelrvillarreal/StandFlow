@@ -28,6 +28,93 @@ alter table public.reservations enable row level security;
 alter table public.profiles enable row level security;
 alter table public.app_settings enable row level security;
 
+-- Cascada de borrado:
+-- Si se elimina un evento, se eliminan automaticamente sus stands y reservas.
+-- Si se elimina un stand, se eliminan sus reservas asociadas.
+do $$
+declare
+  constraint_name text;
+begin
+  select tc.constraint_name
+  into constraint_name
+  from information_schema.table_constraints tc
+  join information_schema.key_column_usage kcu
+    on tc.constraint_name = kcu.constraint_name
+   and tc.table_schema = kcu.table_schema
+  where tc.table_schema = 'public'
+    and tc.table_name = 'reservations'
+    and tc.constraint_type = 'FOREIGN KEY'
+    and kcu.column_name = 'event_id'
+  limit 1;
+
+  if constraint_name is not null then
+    execute format('alter table public.reservations drop constraint %I', constraint_name);
+  end if;
+
+  alter table public.reservations
+    add constraint reservations_event_id_fkey
+    foreign key (event_id)
+    references public.events(id)
+    on delete cascade;
+end;
+$$;
+
+do $$
+declare
+  constraint_name text;
+begin
+  select tc.constraint_name
+  into constraint_name
+  from information_schema.table_constraints tc
+  join information_schema.key_column_usage kcu
+    on tc.constraint_name = kcu.constraint_name
+   and tc.table_schema = kcu.table_schema
+  where tc.table_schema = 'public'
+    and tc.table_name = 'stands'
+    and tc.constraint_type = 'FOREIGN KEY'
+    and kcu.column_name = 'event_id'
+  limit 1;
+
+  if constraint_name is not null then
+    execute format('alter table public.stands drop constraint %I', constraint_name);
+  end if;
+
+  alter table public.stands
+    add constraint stands_event_id_fkey
+    foreign key (event_id)
+    references public.events(id)
+    on delete cascade;
+end;
+$$;
+
+do $$
+declare
+  constraint_name text;
+begin
+  select tc.constraint_name
+  into constraint_name
+  from information_schema.table_constraints tc
+  join information_schema.key_column_usage kcu
+    on tc.constraint_name = kcu.constraint_name
+   and tc.table_schema = kcu.table_schema
+  where tc.table_schema = 'public'
+    and tc.table_name = 'reservations'
+    and tc.constraint_type = 'FOREIGN KEY'
+    and kcu.column_name = 'stand_id'
+  limit 1;
+
+  if constraint_name is not null then
+    execute format('alter table public.reservations drop constraint %I', constraint_name);
+  end if;
+
+  alter table public.reservations
+    add constraint reservations_stand_id_fkey
+    foreign key (stand_id)
+    references public.stands(id)
+    on delete cascade;
+end;
+$$;
+
 drop policy if exists "authenticated users can read app settings" on public.app_settings;
 create policy "authenticated users can read app settings"
 on public.app_settings
