@@ -1,0 +1,16 @@
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '0 12 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          curl -sf "${{ secrets.SUPABASE_URL || 'https://fctdwbqpbyfdozucsonm.supabase.co' }}/rest/v1/app_settings?select=*&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY || 'sb_publishable_Y51U3fpJWZtIjVv1LSEiaA_moQgsYf3' }}" \
+            -o /dev/null -w "HTTP %{http_code}\n"
