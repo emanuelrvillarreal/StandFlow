@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
         <div className="bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
           <div className="flex items-center gap-3 mb-6">
-            <Link to="/login" className="text-ink-500 hover:text-white transition"><ArrowLeft size={20} /></Link>
+            <Link to="/login" className="text-muted hover:text-white transition"><ArrowLeft size={20} /></Link>
             <h2 className="text-xl font-display font-semibold text-white">Crear cuenta</h2>
           </div>
 
@@ -73,47 +73,47 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-ink-500/90 mb-1">Nombre</label>
+                <label className="block text-sm font-medium text-muted mb-1">Nombre</label>
                 <input type="text" required {...f('name')}
-                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Juan" />
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Juan" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-ink-500/90 mb-1">Apellido</label>
+                <label className="block text-sm font-medium text-muted mb-1">Apellido</label>
                 <input type="text" required {...f('lastName')}
-                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Pérez" />
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Pérez" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Nombre del emprendimiento</label>
+              <label className="block text-sm font-medium text-muted mb-1">Nombre del emprendimiento</label>
               <input type="text" {...f('businessName')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Ej: Ropa Artesanal MJ" />
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Ej: Ropa Artesanal MJ" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Email</label>
+              <label className="block text-sm font-medium text-muted mb-1">Email</label>
               <input type="email" required {...f('email')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="tu@email.com" />
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="tu@email.com" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Teléfono</label>
+              <label className="block text-sm font-medium text-muted mb-1">Teléfono</label>
               <input type="tel" required {...f('phone')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="11 1234-5678" />
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="11 1234-5678" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Contraseña</label>
+              <label className="block text-sm font-medium text-muted mb-1">Contraseña</label>
               <input type="password" required {...f('password')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Confirmar contraseña</label>
+              <label className="block text-sm font-medium text-muted mb-1">Confirmar contraseña</label>
               <input type="password" required {...f('confirm')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
             </div>
             <button type="submit"
               className="w-full bg-accent hover:bg-accent-soft text-ink-950 font-display font-bold py-3 rounded-xl transition shadow-glow">
               Crear cuenta
             </button>
           </form>
-          <p className="text-center text-ink-500/80 text-sm mt-6">
+          <p className="text-center text-muted text-sm mt-6">
             ¿Ya tenés cuenta?{' '}
             <Link to="/login" className="text-accent font-medium hover:text-accent-soft transition">Iniciar sesión</Link>
           </p>

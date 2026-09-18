@@ -10,13 +10,13 @@ const STATUS_LABELS = { active: 'Activo', upcoming: 'Próximo', past: 'Finalizad
 const STATUS_STYLES = {
   active: 'bg-accent/15 text-accent-soft border border-accent/30',
   upcoming: 'bg-sky-400/10 text-sky-300 border border-sky-400/30',
-  past: 'bg-ink-600 text-ink-500 border border-ink-500/50',
+  past: 'bg-ink-600 text-muted border border-ink-500/50',
 }
 // Variante con fondo sólido, para que el badge se lea bien sobre cualquier póster.
 const STATUS_STYLES_ON_IMAGE = {
   active: 'bg-ink-950/80 backdrop-blur-sm text-accent-soft border border-accent/40',
   upcoming: 'bg-ink-950/80 backdrop-blur-sm text-sky-300 border border-sky-400/40',
-  past: 'bg-ink-950/80 backdrop-blur-sm text-ink-500 border border-ink-500/50',
+  past: 'bg-ink-950/80 backdrop-blur-sm text-muted border border-ink-500/50',
 }
 
 export default function EventsPage() {
@@ -87,11 +87,11 @@ export default function EventsPage() {
                 {!isAdmin && (
                   <>
                     <button onClick={() => navigate('/profile')}
-                      className="flex items-center gap-1 text-sm text-ink-500/90 hover:text-white hover:bg-ink-700 px-3 py-2 rounded-lg transition">
+                      className="flex items-center gap-1 text-sm text-muted hover:text-white hover:bg-ink-700 px-3 py-2 rounded-lg transition">
                       <Store size={16} /> Mi perfil
                     </button>
                     <button onClick={() => navigate('/my-reservations')}
-                      className="flex items-center gap-1 text-sm text-ink-500/90 hover:text-white hover:bg-ink-700 px-3 py-2 rounded-lg transition">
+                      className="flex items-center gap-1 text-sm text-muted hover:text-white hover:bg-ink-700 px-3 py-2 rounded-lg transition">
                       <User size={16} /> Mis reservas
                     </button>
                   </>
@@ -110,7 +110,7 @@ export default function EventsPage() {
           </div>
 
           <div className="md:hidden">
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-ink-500">
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-muted">
               <User size={24} />
             </button>
           </div>
@@ -157,7 +157,7 @@ export default function EventsPage() {
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-display font-bold tracking-wide text-white uppercase">Eventos disponibles</h1>
-            <p className="text-ink-500/80 mt-1">
+            <p className="text-muted mt-1">
               {currentUser ? `Hola, ${currentUser.name}. Seleccioná un evento para ver sus stands.` : 'Seleccioná un evento para ver sus stands.'}
             </p>
           </div>
@@ -224,20 +224,20 @@ export default function EventsPage() {
                   className="block w-full text-left"
                 >
                   <h3 className="font-display font-bold text-white text-lg leading-tight mb-2">{ev.name}</h3>
-                  <div className="flex items-center gap-1.5 text-ink-500/80 text-sm mb-1">
+                  <div className="flex items-center gap-1.5 text-muted text-sm mb-1">
                     <Calendar size={14} />
                     <span>{formatEventDate(ev)}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-ink-500/80 text-sm mb-4">
+                  <div className="flex items-center gap-1.5 text-muted text-sm mb-4">
                     <MapPin size={14} />
                     <span>{ev.location}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex gap-3 text-xs text-ink-500/80">
+                    <div className="flex gap-3 text-xs text-muted">
                       <span>{ev.stands.filter(s => s.status === 'available').length} disponibles</span>
                       <span>{ev.stands.filter(s => s.status === 'reserved' || s.status === 'pending').length} ocupados</span>
                     </div>
-                    <ChevronRight size={16} className="text-ink-500 group-hover:text-accent group-hover:translate-x-0.5 transition" />
+                    <ChevronRight size={16} className="text-muted group-hover:text-accent group-hover:translate-x-0.5 transition" />
                   </div>
                 </button>
               </div>

@@ -73,29 +73,29 @@ export default function ResetPasswordPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Contraseña nueva</label>
+              <label className="block text-sm font-medium text-muted mb-1">Contraseña nueva</label>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}
                   required
                   {...f('password')}
-                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent pr-12 transition"
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent pr-12 transition"
                   placeholder="••••••••"
                 />
                 <button type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 hover:text-white transition">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white transition">
                   {showPass ? <EyeOff size={18}/> : <Eye size={18}/>}
                 </button>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Confirmar contraseña</label>
+              <label className="block text-sm font-medium text-muted mb-1">Confirmar contraseña</label>
               <input
                 type={showPass ? 'text' : 'password'}
                 required
                 {...f('confirm')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
                 placeholder="••••••••"
               />
             </div>

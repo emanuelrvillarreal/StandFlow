@@ -38,11 +38,11 @@ export default function ConfirmDialog({
               {itemLabel}
             </p>
           )}
-          <p className="text-sm text-ink-500/90 leading-relaxed">{message}</p>
+          <p className="text-sm text-muted leading-relaxed">{message}</p>
         </div>
         <div className="p-4 bg-ink-900 border-t border-ink-700 flex gap-3">
           <button onClick={onCancel}
-            className="flex-1 px-4 py-2.5 border border-ink-600 rounded-xl font-semibold text-ink-500/90 hover:bg-ink-700 hover:text-white transition">
+            className="flex-1 px-4 py-2.5 border border-ink-600 rounded-xl font-semibold text-muted hover:bg-ink-700 hover:text-white transition">
             {cancelLabel}
           </button>
           <button onClick={onConfirm}

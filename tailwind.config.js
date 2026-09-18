@@ -11,6 +11,12 @@ export default {
           600: '#26263d',
           500: '#3a3a57',
         },
+        // Gris claro para texto secundario sobre fondo oscuro (ink-500 es
+        // muy oscuro y casi no contrasta; esto es lo que se usa para textos).
+        muted: {
+          DEFAULT: '#a8a8cc',
+          dim: '#83839f',
+        },
         accent: {
           DEFAULT: '#2ee6d6',
           soft: '#7ff3e9',

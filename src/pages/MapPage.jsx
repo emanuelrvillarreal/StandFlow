@@ -46,7 +46,7 @@ export default function MapPage() {
   const [editingStand, setEditingStand] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
 
-  if (!event) return <div className="min-h-screen bg-ink-950 text-ink-500 p-8 text-center">Evento no encontrado.</div>
+  if (!event) return <div className="min-h-screen bg-ink-950 text-muted p-8 text-center">Evento no encontrado.</div>
 
   const isAdmin = currentUser?.role_id === 1
   const stands = event.stands.filter(s => s.sector === sector)
@@ -126,19 +126,19 @@ export default function MapPage() {
       {/* Header */}
       <div className="bg-ink-900/90 backdrop-blur border-b border-ink-700 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate('/events')} className="text-ink-500 hover:text-white transition">
+          <button onClick={() => navigate('/events')} className="text-muted hover:text-white transition">
             <ArrowLeft size={22}/>
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="font-display font-bold text-white truncate">{event.name}</h1>
-            <p className="text-xs text-ink-500/80">Seleccioná un stand para reservar</p>
+            <p className="text-xs text-muted">Seleccioná un stand para reservar</p>
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
               <>
                 <button
                   onClick={() => { setEditMode(!editMode); setSelectedStand(null) }}
-                  className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl transition ${editMode ? 'bg-amber-500 text-ink-950' : 'bg-ink-700 text-ink-500/90 hover:bg-ink-600'}`}>
+                  className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl transition ${editMode ? 'bg-amber-500 text-ink-950' : 'bg-ink-700 text-muted hover:bg-ink-600'}`}>
                   <Edit3 size={15}/>
                   <span className="hidden sm:inline">{editMode ? 'Editando' : 'Modo edición'}</span>
                 </button>
@@ -159,12 +159,12 @@ export default function MapPage() {
         <div className="max-w-5xl mx-auto px-4 pb-3 flex gap-2">
           {['salon','galeria'].map(s => (
             <button key={s} onClick={() => setSector(s)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${sector===s?'bg-accent text-ink-950':'bg-ink-700 text-ink-500/90 hover:bg-ink-600'}`}>
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${sector===s?'bg-accent text-ink-950':'bg-ink-700 text-muted hover:bg-ink-600'}`}>
               <Layers size={13}/> {s === 'salon' ? 'Salón' : 'Galería'}
             </button>
           ))}
           <button onClick={() => setShowCategories(!showCategories)}
-            className={`ml-auto flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${showCategories?'bg-accent/15 text-accent-soft border border-accent/30':'bg-ink-700 text-ink-500/90 hover:bg-ink-600'}`}>
+            className={`ml-auto flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${showCategories?'bg-accent/15 text-accent-soft border border-accent/30':'bg-ink-700 text-muted hover:bg-ink-600'}`}>
             <Info size={13}/> Leyenda
           </button>
         </div>
@@ -197,7 +197,7 @@ export default function MapPage() {
                   {cat.name}
                 </span>
               ))}
-              <span className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full font-medium bg-ink-700 text-ink-500">
+              <span className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full font-medium bg-ink-700 text-muted">
                 <span className="w-2.5 h-2.5 rounded-full bg-ink-500"/>Sin categoría (por estado)
               </span>
             </div>
@@ -231,7 +231,7 @@ export default function MapPage() {
               })}
             </div>
           </div>
-          <div className="bg-ink-900 px-4 py-2 border-t border-ink-700 md:hidden flex items-center justify-center gap-2 text-[10px] text-ink-500">
+          <div className="bg-ink-900 px-4 py-2 border-t border-ink-700 md:hidden flex items-center justify-center gap-2 text-[10px] text-muted">
             <div className="flex items-center gap-1"><span className="w-2 h-2 bg-ink-500 rounded-full"/> Deslizá para ver el mapa completo</div>
           </div>
         </div>
@@ -253,7 +253,7 @@ export default function MapPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-white truncate">Stand {stand.number}</p>
-                  <p className="text-xs text-ink-500">${stand.price.toLocaleString('es-AR')}</p>
+                  <p className="text-xs text-muted">${stand.price.toLocaleString('es-AR')}</p>
                 </div>
               </button>
             )

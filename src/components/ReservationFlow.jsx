@@ -177,28 +177,28 @@ export default function ReservationFlow({ stand, event, onClose }) {
               <CheckCircle className="text-accent" size={32}/>
             </div>
             <h3 className="text-xl font-display font-bold text-white mb-1">¡Reserva registrada!</h3>
-            <p className="text-ink-500/80 text-sm">Tu reserva quedó pendiente de confirmación.</p>
+            <p className="text-muted text-sm">Tu reserva quedó pendiente de confirmación.</p>
           </div>
 
           <div className="mx-6 bg-ink-900 border border-ink-600 rounded-xl p-4 mb-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-ink-500">Stand</span>
+              <span className="text-muted">Stand</span>
               <span className="font-medium text-white">{stand.number} — {form.standName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-500">Categoría</span>
+              <span className="text-muted">Categoría</span>
               <span className="font-medium text-white">{cat?.name}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-500">Evento</span>
+              <span className="text-muted">Evento</span>
               <span className="font-medium text-white text-right max-w-[60%]">{event.name}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-500">Importe</span>
+              <span className="text-muted">Importe</span>
               <span className="font-bold text-accent-soft">${stand.price.toLocaleString('es-AR')}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-500">Estado</span>
+              <span className="text-muted">Estado</span>
               <span className="font-medium text-yellow-300">Pendiente de pago</span>
             </div>
           </div>
@@ -229,28 +229,28 @@ export default function ReservationFlow({ stand, event, onClose }) {
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-ink-800 border border-ink-600 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-ink-600 flex-shrink-0">
-          <button onClick={onClose} className="text-ink-500 hover:text-white transition"><ArrowLeft size={20}/></button>
+          <button onClick={onClose} className="text-muted hover:text-white transition"><ArrowLeft size={20}/></button>
           <div>
             <h3 className="font-display font-bold text-white">Reservar Stand {stand.number}</h3>
-            <p className="text-xs text-ink-500">{event.name}</p>
+            <p className="text-xs text-muted">{event.name}</p>
           </div>
-          <button onClick={onClose} className="ml-auto text-ink-500 hover:text-white transition"><X size={20}/></button>
+          <button onClick={onClose} className="ml-auto text-muted hover:text-white transition"><X size={20}/></button>
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
           {error && <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl text-sm">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-ink-500/90 mb-1">
+            <label className="block text-sm font-medium text-muted mb-1">
               Nombre del stand <span className="text-red-400">*</span>
             </label>
             <input type="text" required {...f('standName')}
-              className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
+              className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
               placeholder="Ej: Ropa Artesanal, Joyería..."/>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-ink-500/90 mb-1">
+            <label className="block text-sm font-medium text-muted mb-1">
               Categoría <span className="text-red-400">*</span>
             </label>
             <select required {...f('categoryId')}
@@ -263,10 +263,10 @@ export default function ReservationFlow({ stand, event, onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-ink-500/90 mb-2">¿Stand compartido?</label>
+            <label className="block text-sm font-medium text-muted mb-2">¿Stand compartido?</label>
             <div className="flex gap-3">
               {['no','si'].map(v => (
-                <label key={v} className={`flex-1 flex items-center justify-center gap-2 py-3 border rounded-xl cursor-pointer transition ${form.shared===v?'border-accent bg-accent/10 text-accent-soft':'border-ink-600 text-ink-500/90 hover:bg-ink-700'}`}>
+                <label key={v} className={`flex-1 flex items-center justify-center gap-2 py-3 border rounded-xl cursor-pointer transition ${form.shared===v?'border-accent bg-accent/10 text-accent-soft':'border-ink-600 text-muted hover:bg-ink-700'}`}>
                   <input type="radio" name="shared" value={v} checked={form.shared===v} onChange={() => setForm({...form, shared:v})} className="sr-only"/>
                   {v === 'si' ? 'Sí' : 'No'}
                 </label>
@@ -277,17 +277,17 @@ export default function ReservationFlow({ stand, event, onClose }) {
           {form.shared === 'si' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-ink-500/90 mb-1">
+                <label className="block text-sm font-medium text-muted mb-1">
                   Nombre con quien compartís <span className="text-red-400">*</span>
                 </label>
                 <input type="text" {...f('sharedWith')}
-                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
                   placeholder="Nombre completo"/>
               </div>
               <div>
-                <label className="block text-sm font-medium text-ink-500/90 mb-1">Instagram (opcional)</label>
+                <label className="block text-sm font-medium text-muted mb-1">Instagram (opcional)</label>
                 <input type="text" {...f('instagram')}
-                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
                   placeholder="@usuario"/>
               </div>
             </>
@@ -295,13 +295,13 @@ export default function ReservationFlow({ stand, event, onClose }) {
 
           <div className="bg-ink-900 border border-ink-600 rounded-xl p-4 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-2">Modo de pago</label>
+              <label className="block text-sm font-medium text-muted mb-2">Modo de pago</label>
               <div className="flex gap-3">
                 {[
                   { id: 'full', label: 'Totalidad (100%)' },
                   { id: 'deposit', label: 'Seña (50%)' }
                 ].map(v => (
-                  <label key={v.id} className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded-xl cursor-pointer transition ${form.paymentType===v.id?'border-accent bg-accent/15 text-accent-soft':'border-ink-600 bg-ink-800 text-ink-500/90 hover:bg-ink-700'}`}>
+                  <label key={v.id} className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded-xl cursor-pointer transition ${form.paymentType===v.id?'border-accent bg-accent/15 text-accent-soft':'border-ink-600 bg-ink-800 text-muted hover:bg-ink-700'}`}>
                     <input type="radio" name="paymentType" value={v.id} checked={form.paymentType===v.id} onChange={() => setForm({...form, paymentType:v.id})} className="sr-only"/>
                     <span className="text-sm font-medium">{v.label}</span>
                   </label>
@@ -309,7 +309,7 @@ export default function ReservationFlow({ stand, event, onClose }) {
               </div>
             </div>
             <div className="flex justify-between items-center border-t border-ink-600 pt-4">
-              <span className="text-ink-500 text-sm">A pagar ahora</span>
+              <span className="text-muted text-sm">A pagar ahora</span>
               <span className="font-display font-bold text-xl text-accent-soft">${calculatedAmount.toLocaleString('es-AR')}</span>
             </div>
           </div>

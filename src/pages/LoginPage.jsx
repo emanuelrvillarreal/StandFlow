@@ -77,7 +77,7 @@ export default function LoginPage() {
             <Zap className="text-accent" size={30} />
           </div>
           <h1 className="text-3xl font-display font-bold tracking-wide text-white uppercase">Stands Flow</h1>
-          <p className="text-ink-500/80 text-sm mt-1">Gestión y reserva de stands</p>
+          <p className="text-muted text-sm mt-1">Gestión y reserva de stands</p>
         </div>
 
         <div className="bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
@@ -92,17 +92,17 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink-500/90 mb-1">Email</label>
+              <label className="block text-sm font-medium text-muted mb-1">Email</label>
               <input
                 type="email" required
                 value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition"
                 placeholder="tu@email.com"
               />
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between gap-3">
-                <label className="block text-sm font-medium text-ink-500/90">Contraseña</label>
+                <label className="block text-sm font-medium text-muted">Contraseña</label>
                 <button
                   type="button"
                   onClick={handlePasswordRecovery}
@@ -116,11 +116,11 @@ export default function LoginPage() {
                 <input
                   type={showPass ? 'text' : 'password'} required
                   value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent pr-12 transition"
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent pr-12 transition"
                   placeholder="••••••••"
                 />
                 <button type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 hover:text-white transition">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white transition">
                   {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
@@ -131,12 +131,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-ink-500/80 text-sm mt-6">
+          <p className="text-center text-muted text-sm mt-6">
             ¿No tenés cuenta?{' '}
             <Link to="/register" className="text-accent font-medium hover:text-accent-soft transition">Registrarse</Link>
           </p>
-          <p className="text-center text-ink-500/60 text-xs mt-3">
-            <Link to="/events" className="hover:text-ink-500 transition">Ver eventos sin iniciar sesión</Link>
+          <p className="text-center text-muted text-xs mt-3">
+            <Link to="/events" className="hover:text-muted transition">Ver eventos sin iniciar sesión</Link>
           </p>
         </div>
       </div>

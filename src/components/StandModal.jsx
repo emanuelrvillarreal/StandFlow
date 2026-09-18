@@ -1,7 +1,7 @@
 import { X, Tag, DollarSign, Hash, Info } from 'lucide-react'
 
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
-const STATUS_STYLES = { available:'text-accent-soft bg-accent/10 border border-accent/30', pending:'text-yellow-300 bg-yellow-500/10 border border-yellow-500/30', reserved:'text-red-300 bg-red-500/10 border border-red-500/30', blocked:'text-ink-500 bg-ink-700 border border-ink-600' }
+const STATUS_STYLES = { available:'text-accent-soft bg-accent/10 border border-accent/30', pending:'text-yellow-300 bg-yellow-500/10 border border-yellow-500/30', reserved:'text-red-300 bg-red-500/10 border border-red-500/30', blocked:'text-muted bg-ink-700 border border-ink-600' }
 
 export default function StandModal({ stand, category, event, onClose, onReserve }) {
   return (
@@ -9,7 +9,7 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
       <div className="bg-ink-800 border border-ink-600 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-ink-600">
           <h3 className="font-display font-bold text-xl text-white">Stand {stand.number}</h3>
-          <button onClick={onClose} className="text-ink-500 hover:text-white transition">
+          <button onClick={onClose} className="text-muted hover:text-white transition">
             <X size={22}/>
           </button>
         </div>
@@ -17,20 +17,20 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
         <div className="px-6 py-5 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-ink-900 border border-ink-600 rounded-xl flex items-center justify-center">
-              <Hash size={16} className="text-ink-500"/>
+              <Hash size={16} className="text-muted"/>
             </div>
             <div>
-              <p className="text-xs text-ink-500">Número de stand</p>
+              <p className="text-xs text-muted">Número de stand</p>
               <p className="font-semibold text-white">{stand.number}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-ink-900 border border-ink-600 rounded-xl flex items-center justify-center">
-              <Info size={16} className="text-ink-500"/>
+              <Info size={16} className="text-muted"/>
             </div>
             <div>
-              <p className="text-xs text-ink-500">Sector</p>
+              <p className="text-xs text-muted">Sector</p>
               <p className="font-semibold text-white capitalize">{stand.sector}</p>
             </div>
           </div>
@@ -41,7 +41,7 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
                 <Tag size={16} style={{color: category.color}}/>
               </div>
               <div>
-                <p className="text-xs text-ink-500">Categoría</p>
+                <p className="text-xs text-muted">Categoría</p>
                 <p className="font-semibold text-white">{category.name}</p>
               </div>
             </div>
@@ -52,7 +52,7 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
               <DollarSign size={16} className="text-accent-soft"/>
             </div>
             <div>
-              <p className="text-xs text-ink-500">Precio</p>
+              <p className="text-xs text-muted">Precio</p>
               <p className="font-semibold text-white">${stand.price.toLocaleString('es-AR')}</p>
             </div>
           </div>
@@ -71,7 +71,7 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
             </button>
           ) : (
             <button disabled
-              className="w-full bg-ink-700 text-ink-500 font-semibold py-3 rounded-xl cursor-not-allowed">
+              className="w-full bg-ink-700 text-muted font-semibold py-3 rounded-xl cursor-not-allowed">
               {STATUS_LABELS[stand.status]}
             </button>
           )}
