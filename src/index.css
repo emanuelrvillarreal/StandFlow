@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #07070d; }
 
 .stand-dot {
   position: absolute;

@@ -220,13 +220,13 @@ function reducer(state, action) {
         ),
       }
     case 'UPDATE_RESERVATION_STATUS': {
-      const { id, status } = action
+      const { id, status, paidAt } = action
       const res = state.reservations.find(r => r.id === id)
       if (!res) return state
       let newStandStatus = (status === 'paid' || status === 'deposit_paid') ? 'reserved' : status === 'cancelled' ? 'available' : 'pending'
       return {
         ...state,
-        reservations: state.reservations.map(r => r.id === id ? { ...r, status } : r),
+        reservations: state.reservations.map(r => r.id === id ? { ...r, status, paidAt: paidAt !== undefined ? paidAt : r.paidAt } : r),
         events: state.events.map(ev =>
           ev.id === res.eventId
             ? {
@@ -330,6 +330,15 @@ function reducer(state, action) {
         settings: action.settings ?? state.settings,
         loading: false 
       }
+    case 'UPSERT_RESERVATION': {
+      const exists = state.reservations.some(r => r.id === action.reservation.id)
+      return {
+        ...state,
+        reservations: exists
+          ? state.reservations.map(r => r.id === action.reservation.id ? action.reservation : r)
+          : [...state.reservations, action.reservation],
+      }
+    }
     case 'ADD_EXPENSE':
       return { ...state, expenses: [...state.expenses, action.expense] }
     case 'DELETE_EXPENSE':
@@ -352,10 +361,16 @@ const AppContext = createContext(null)
 const STORAGE_KEY = 'standflow_full_state'
 
 function mapProfile(profile) {
+  if (!profile) return profile
   return {
     ...profile,
     name: profile.name ?? profile.first_name ?? '',
     lastName: profile.lastName ?? profile.last_name ?? '',
+    businessName: profile.businessName ?? profile.business_name ?? '',
+    instagram: profile.instagram ?? '',
+    businessPhoto: profile.businessPhoto ?? profile.business_photo ?? '',
+    isBlocked: profile.isBlocked ?? profile.is_blocked ?? false,
+    blockedReason: profile.blockedReason ?? profile.blocked_reason ?? '',
   }
 }
 
@@ -441,9 +456,10 @@ export function AppProvider({ children }) {
       try {
         // 1. Verificar sesión actual
         const { data: { session } } = await supabase.auth.getSession()
+        const isLoggedIn = !!session
         if (session) {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-          if (profile?.role_id === -1) {
+          if (profile?.role_id === -1 || profile?.is_blocked) {
             await supabase.auth.signOut()
             dispatch({ type: 'SET_USER', user: null })
           } else {
@@ -456,7 +472,7 @@ export function AppProvider({ children }) {
           setTimeout(async () => {
             if (session) {
               const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-              if (profile?.role_id === -1) {
+              if (profile?.role_id === -1 || profile?.is_blocked) {
                 await supabase.auth.signOut()
                 dispatch({ type: 'SET_USER', user: null })
               } else {
@@ -487,7 +503,10 @@ export function AppProvider({ children }) {
           supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle()
         ])
 
-        if (catError || evError || stError || resError || profilesError) {
+        // Sin sesión, profiles/reservations están restringidos por RLS y
+        // fallan a propósito: no deben frenar la carga de eventos/stands
+        // públicos, que sí tienen que verse sin login.
+        if (catError || evError || stError || (isLoggedIn && (resError || profilesError))) {
           console.error("Error cargando datos de Supabase:", { catError, evError, stError, resError, profilesError })
           return
         }
@@ -522,6 +541,8 @@ export function AppProvider({ children }) {
           standName: r.stand_name,
           sharedWith: r.shared_with,
           categoryId: r.category_id,
+          paymentType: r.payment_type || 'full',
+          paidAt: r.paid_at,
           createdAt: r.created_at
         }))
 
@@ -530,6 +551,8 @@ export function AppProvider({ children }) {
         const eventsWithStands = (events || []).map(ev => ({
           ...ev,
           mapImage: ev.map_image, // Convertir map_image -> mapImage
+          posterImage: ev.poster_image,
+          endDate: ev.end_date,
           paymentInstructions: ev.payment_instructions,
           stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id)
         }))
@@ -551,7 +574,65 @@ export function AppProvider({ children }) {
     fetchData()
   }, [])
 
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
+  // Sincronización en vivo: refleja reservas/stands hechos por otros usuarios
+  // (u otras pestañas) sin necesidad de recargar la página.
+  useEffect(() => {
+    const standsChannel = supabase
+      .channel('stands-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stands' }, payload => {
+        if (payload.eventType === 'DELETE') return
+        const row = payload.new
+        dispatch({
+          type: 'UPDATE_STAND',
+          eventId: row.event_id,
+          standId: row.id,
+          updates: { status: row.status, categoryId: row.category_id },
+        })
+      })
+      .subscribe()
+
+    const reservationsChannel = supabase
+      .channel('reservations-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_RESERVATION', id: payload.old.id })
+          return
+        }
+        const row = payload.new
+        dispatch({
+          type: 'UPSERT_RESERVATION',
+          reservation: {
+            id: row.id,
+            eventId: row.event_id,
+            standId: row.stand_id,
+            userId: row.user_id,
+            standName: row.stand_name,
+            shared: row.shared,
+            sharedWith: row.shared_with,
+            instagram: row.instagram,
+            categoryId: row.category_id,
+            status: row.status,
+            amount: row.amount,
+            paymentType: row.payment_type || 'full',
+            paidAt: row.paid_at,
+            createdAt: row.created_at,
+          },
+        })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(standsChannel)
+      supabase.removeChannel(reservationsChannel)
+    }
+  }, [])
+
+  async function logout() {
+    await supabase.auth.signOut()
+    dispatch({ type: 'LOGOUT' })
+  }
+
+  return <AppContext.Provider value={{ state, dispatch, logout }}>{children}</AppContext.Provider>
 }
 
 export function useApp() {

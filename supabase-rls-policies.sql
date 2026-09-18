@@ -22,6 +22,35 @@ create table if not exists public.app_settings (
   updated_at timestamptz not null default now()
 );
 
+-- Poster/flyer del evento, visible en la lista de eventos.
+alter table public.events add column if not exists poster_image text;
+
+-- Fecha de fin, para eventos de varios días (null = evento de un solo día).
+alter table public.events add column if not exists end_date date;
+
+-- Si la reserva fue por seña (50%) o por el total, para que el admin lo vea.
+alter table public.reservations add column if not exists payment_type text default 'full';
+
+-- Fecha en que se marcó la reserva como pagada/seña, para el libro de caja de Finanzas.
+alter table public.reservations add column if not exists paid_at timestamptz;
+
+-- 'income' o 'expense', para poder cargar ingresos manuales además de egresos.
+alter table public.expenses add column if not exists type text default 'expense';
+
+-- Nombre del emprendimiento del expositor, cargado al registrarse.
+alter table public.profiles add column if not exists business_name text;
+
+-- Bloqueo de usuarios: el motivo solo lo carga/ve el admin. Al usuario
+-- bloqueado se lo desloguea automáticamente sin mostrarle el motivo.
+alter table public.profiles add column if not exists is_blocked boolean not null default false;
+alter table public.profiles add column if not exists blocked_reason text;
+alter table public.profiles add column if not exists blocked_at timestamptz;
+
+-- Perfil público del expositor: instagram y foto del emprendimiento,
+-- para mostrar en el mapa quién está en cada stand.
+alter table public.profiles add column if not exists instagram text;
+alter table public.profiles add column if not exists business_photo text;
+
 alter table public.events enable row level security;
 alter table public.stands enable row level security;
 alter table public.reservations enable row level security;
@@ -158,6 +187,15 @@ for select
 to authenticated
 using (true);
 
+-- Permite navegar los eventos sin iniciar sesión (solo lectura,
+-- sin datos sensibles). El login se pide recién al reservar.
+drop policy if exists "anyone can read events" on public.events;
+create policy "anyone can read events"
+on public.events
+for select
+to anon
+using (true);
+
 drop policy if exists "admins can manage events" on public.events;
 create policy "admins can manage events"
 on public.events
@@ -171,6 +209,14 @@ create policy "authenticated users can read stands"
 on public.stands
 for select
 to authenticated
+using (true);
+
+-- Idem para stands: se puede ver el mapa y la disponibilidad sin login.
+drop policy if exists "anyone can read stands" on public.stands;
+create policy "anyone can read stands"
+on public.stands
+for select
+to anon
 using (true);
 
 drop policy if exists "admins can manage stands" on public.stands;
@@ -221,6 +267,45 @@ for update
 to authenticated
 using (status = 'available')
 with check (status = 'pending');
+
+-- Permite revertir un stand a 'available' si el insert de la reserva falló
+-- (evita stands huérfanos en 'pending' sin reserva). Solo libera stands
+-- que NO tienen ninguna reserva activa, así no se puede pisar la reserva
+-- de otra persona.
+drop policy if exists "users can rollback failed reservation stands" on public.stands;
+create policy "users can rollback failed reservation stands"
+on public.stands
+for update
+to authenticated
+using (
+  status = 'pending'
+  and not exists (
+    select 1 from public.reservations r
+    where r.stand_id = stands.id
+      and r.status in ('pending', 'deposit_paid', 'paid', 'reserved')
+  )
+)
+with check (status = 'available');
+
+-- Limpieza puntual de stands huérfanos (los que quedaron en 'pending'/
+-- 'reserved' por el error de payment_type sin fila en reservations).
+-- Ejecutalo una vez para liberar esos 2 stands:
+-- update public.stands s
+-- set status = 'available', category_id = null
+-- where s.status in ('pending', 'reserved')
+--   and not exists (
+--     select 1 from public.reservations r
+--     where r.stand_id = s.id
+--       and r.status in ('pending', 'deposit_paid', 'paid', 'reserved')
+--   );
+-- Para ver cuáles son antes de liberarlos:
+-- select s.id, s.event_id, s.status
+-- from public.stands s
+-- left join public.reservations r
+--   on r.stand_id = s.id
+--   and r.status in ('pending', 'deposit_paid', 'paid', 'reserved')
+-- where s.status in ('pending', 'reserved')
+--   and r.id is null;
 
 create or replace function public.sync_stand_status_from_reservations(target_stand_id uuid)
 returns void
@@ -297,3 +382,8 @@ begin
   end loop;
 end;
 $$;
+
+-- Habilitar Realtime en stands/reservations para que el mapa se actualice
+-- en vivo cuando otro usuario reserva un stand (sin tener que recargar).
+alter publication supabase_realtime add table public.stands;
+alter publication supabase_realtime add table public.reservations;
