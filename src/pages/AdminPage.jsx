@@ -28,7 +28,7 @@ const EMPTY_EVENT_FORM = {
 }
 
 export default function AdminPage() {
-  const { state, dispatch, logout } = useApp()
+  const { state, dispatch, logout, refreshUsers } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const { events, reservations, users, categories, currentUser, expenses } = state
@@ -73,6 +73,13 @@ export default function AdminPage() {
     setConfirmDialog(null)
     if (action) await action()
   }
+
+  // Los datos de los expositores (nombre, foto, emprendimiento) pueden haber
+  // cambiado o haberse registrado después de abrir el panel: se refrescan al
+  // entrar a las pestañas que los muestran.
+  useEffect(() => {
+    if (tab === 'reservations' || tab === 'users' || tab === 'finances') refreshUsers()
+  }, [tab, refreshUsers])
 
   useEffect(() => {
     if (location.state?.openNewEventModal) {

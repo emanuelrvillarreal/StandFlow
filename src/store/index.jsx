@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect } from 'react'
+import { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 // ─── Initial Data ────────────────────────────────────────────────────────────
@@ -339,6 +339,17 @@ function reducer(state, action) {
           : [...state.reservations, action.reservation],
       }
     }
+    case 'UPSERT_USER': {
+      const exists = state.users.some(u => u.id === action.user.id)
+      return {
+        ...state,
+        users: exists
+          ? state.users.map(u => u.id === action.user.id ? action.user : u)
+          : [...state.users, action.user],
+      }
+    }
+    case 'SET_USERS':
+      return { ...state, users: action.users }
     case 'ADD_EXPENSE':
       return { ...state, expenses: [...state.expenses, action.expense] }
     case 'DELETE_EXPENSE':
@@ -451,12 +462,114 @@ export function AppProvider({ children }) {
 
   const [state, dispatch] = useReducer(reducer, initialState)
 
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const lastUserIdRef = useRef(undefined)
+
+  // Trae todos los datos de la app. Lo que se ve depende de la sesión (RLS):
+  // sin sesión solo eventos/stands; con sesión también reservas, perfiles, etc.
+  // Por eso hay que volver a llamarlo cada vez que alguien inicia o cierra sesión.
+  const loadAllData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const isLoggedIn = !!session
+
+      const [
+        { data: categories, error: catError },
+        { data: events, error: evError },
+        { data: stands, error: stError },
+        { data: reservations, error: resError },
+        { data: profiles, error: profilesError },
+        { data: expenses, error: expError },
+        { data: appSettings, error: settingsError }
+      ] = await Promise.all([
+        fetchAllRows('categories', 'id'),
+        fetchAllRows('events', 'date'),
+        fetchAllRows('stands', 'id'),
+        fetchAllRows('reservations', 'created_at'),
+        fetchAllRows('profiles', 'id'),
+        fetchAllRows('expenses', 'created_at'),
+        supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle()
+      ])
+
+      // Sin sesión, profiles/reservations están restringidos por RLS y
+      // fallan a propósito: no deben frenar la carga de eventos/stands
+      // públicos, que sí tienen que verse sin login.
+      if (catError || evError || stError || (isLoggedIn && (resError || profilesError))) {
+        console.error("Error cargando datos de Supabase:", { catError, evError, stError, resError, profilesError })
+        return
+      }
+
+      if (expError) {
+        console.warn("La tabla expenses aún no existe o falló:", expError)
+      }
+
+      if (settingsError) {
+        console.warn("No se pudo cargar app_settings; se usan ajustes por defecto:", settingsError)
+      }
+
+      // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
+      const mappedCategories = (categories || []).map(cat => ({ ...cat }))
+
+      const mappedStands = (stands || []).map(s => ({
+        ...s,
+        categoryId: s.category_id,
+        eventId: s.event_id
+      }))
+
+      const mappedReservations = (reservations || []).map(r => ({
+        ...r,
+        eventId: r.event_id,
+        standId: r.stand_id,
+        userId: r.user_id,
+        standName: r.stand_name,
+        sharedWith: r.shared_with,
+        categoryId: r.category_id,
+        paymentType: r.payment_type || 'full',
+        paidAt: r.paid_at,
+        createdAt: r.created_at
+      }))
+
+      const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)
+      const mappedUsers = (profiles || []).filter(p => p.role_id !== -1).map(mapProfile)
+      const eventsWithStands = (events || []).map(ev => ({
+        ...ev,
+        mapImage: ev.map_image,
+        posterImage: ev.poster_image,
+        endDate: ev.end_date,
+        paymentInstructions: ev.payment_instructions,
+        stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id)
+      }))
+
+      dispatch({
+        type: 'SET_DATA',
+        events: eventsWithStands,
+        categories: mappedCategories,
+        reservations: mappedReservations,
+        expenses: expenses || [],
+        users: mappedUsers,
+        settings: appSettings?.value ? { ...INITIAL_SETTINGS, ...appSettings.value } : INITIAL_SETTINGS
+      })
+    } catch (err) {
+      console.error("Error crítico en fetchData:", err)
+    }
+  }, [])
+
+  // Vuelve a pedir solo los perfiles (para el admin: un expositor pudo
+  // registrarse o actualizar su foto/emprendimiento después de que abrió el panel).
+  const refreshUsers = useCallback(async () => {
+    const { data, error } = await fetchAllRows('profiles', 'id')
+    if (error || !data) return
+    dispatch({ type: 'SET_USERS', users: data.filter(p => p.role_id !== -1).map(mapProfile) })
+  }, [])
+
   useEffect(() => {
-    async function fetchData() {
+    let subscription
+    async function init() {
       try {
         // 1. Verificar sesión actual
         const { data: { session } } = await supabase.auth.getSession()
-        const isLoggedIn = !!session
+        lastUserIdRef.current = session?.user?.id ?? null
         if (session) {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
           if (profile?.role_id === -1 || profile?.is_blocked) {
@@ -467,112 +580,42 @@ export function AppProvider({ children }) {
           }
         }
 
-        // 2. Escuchar cambios en la sesión
-        supabase.auth.onAuthStateChange((_event, session) => {
+        // 2. Escuchar cambios en la sesión. Si cambia quién está logueado
+        //    (login/logout) se vuelven a cargar los datos, porque con otra
+        //    sesión RLS devuelve otras filas.
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
           setTimeout(async () => {
             if (session) {
               const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
               if (profile?.role_id === -1 || profile?.is_blocked) {
                 await supabase.auth.signOut()
                 dispatch({ type: 'SET_USER', user: null })
-              } else {
-                dispatch({ type: 'SET_USER', user: { ...session.user, ...mapProfile(profile) } })
+                return
               }
+              dispatch({ type: 'SET_USER', user: { ...session.user, ...mapProfile(profile) } })
             } else {
               dispatch({ type: 'SET_USER', user: null })
             }
+
+            const uid = session?.user?.id ?? null
+            if (uid !== lastUserIdRef.current) {
+              lastUserIdRef.current = uid
+              await loadAllData()
+            }
           }, 0)
         })
+        subscription = authListener.subscription
 
         // 3. Cargar datos de la app
-        const [
-          { data: categories, error: catError },
-          { data: events, error: evError },
-          { data: stands, error: stError },
-          { data: reservations, error: resError },
-          { data: profiles, error: profilesError },
-          { data: expenses, error: expError },
-          { data: appSettings, error: settingsError }
-        ] = await Promise.all([
-          fetchAllRows('categories', 'id'),
-          fetchAllRows('events', 'date'),
-          fetchAllRows('stands', 'id'),
-          fetchAllRows('reservations', 'created_at'),
-          fetchAllRows('profiles', 'id'),
-          fetchAllRows('expenses', 'created_at'),
-          supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle()
-        ])
-
-        // Sin sesión, profiles/reservations están restringidos por RLS y
-        // fallan a propósito: no deben frenar la carga de eventos/stands
-        // públicos, que sí tienen que verse sin login.
-        if (catError || evError || stError || (isLoggedIn && (resError || profilesError))) {
-          console.error("Error cargando datos de Supabase:", { catError, evError, stError, resError, profilesError })
-          return
-        }
-
-        if (expError) {
-          console.warn("La tabla expenses aún no existe o falló:", expError)
-        }
-
-        if (settingsError) {
-          console.warn("No se pudo cargar app_settings; se usan ajustes por defecto:", settingsError)
-        }
-
-        // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
-
-        // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
-        const mappedCategories = (categories || []).map(cat => ({
-          ...cat,
-          // (los campos id, name, color ya coinciden)
-        }))
-
-        const mappedStands = (stands || []).map(s => ({
-          ...s,
-          categoryId: s.category_id, // Importante: convertir a camelCase
-          eventId: s.event_id
-        }))
-
-        const mappedReservations = (reservations || []).map(r => ({
-          ...r,
-          eventId: r.event_id,
-          standId: r.stand_id,
-          userId: r.user_id,
-          standName: r.stand_name,
-          sharedWith: r.shared_with,
-          categoryId: r.category_id,
-          paymentType: r.payment_type || 'full',
-          paidAt: r.paid_at,
-          createdAt: r.created_at
-        }))
-
-        const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)
-        const mappedUsers = (profiles || []).filter(p => p.role_id !== -1).map(mapProfile)
-        const eventsWithStands = (events || []).map(ev => ({
-          ...ev,
-          mapImage: ev.map_image, // Convertir map_image -> mapImage
-          posterImage: ev.poster_image,
-          endDate: ev.end_date,
-          paymentInstructions: ev.payment_instructions,
-          stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id)
-        }))
-
-        dispatch({ 
-          type: 'SET_DATA', 
-          events: eventsWithStands, 
-          categories: mappedCategories, 
-          reservations: mappedReservations,
-          expenses: expenses || [],
-          users: mappedUsers,
-          settings: appSettings?.value ? { ...INITIAL_SETTINGS, ...appSettings.value } : INITIAL_SETTINGS
-        })
+        await loadAllData()
       } catch (err) {
-        console.error("Error crítico en fetchData:", err)
+        console.error("Error crítico al iniciar la sesión:", err)
       }
     }
 
-    fetchData()
-  }, [])
+    init()
+    return () => subscription?.unsubscribe()
+  }, [loadAllData])
 
   // Sincronización en vivo: refleja reservas/stands hechos por otros usuarios
   // (u otras pestañas) sin necesidad de recargar la página.
@@ -618,6 +661,14 @@ export function AppProvider({ children }) {
             createdAt: row.created_at,
           },
         })
+
+        // Si la reserva es de alguien que todavía no tenemos cargado (ej: un
+        // expositor que se registró después de abrir el panel), traemos su perfil.
+        if (row.user_id && !stateRef.current.users.some(u => u.id === row.user_id)) {
+          supabase.from('profiles').select('*').eq('id', row.user_id).maybeSingle().then(({ data }) => {
+            if (data && data.role_id !== -1) dispatch({ type: 'UPSERT_USER', user: mapProfile(data) })
+          })
+        }
       })
       .subscribe()
 
@@ -632,7 +683,7 @@ export function AppProvider({ children }) {
     dispatch({ type: 'LOGOUT' })
   }
 
-  return <AppContext.Provider value={{ state, dispatch, logout }}>{children}</AppContext.Provider>
+  return <AppContext.Provider value={{ state, dispatch, logout, refreshUsers }}>{children}</AppContext.Provider>
 }
 
 export function useApp() {
