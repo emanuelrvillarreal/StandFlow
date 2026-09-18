@@ -47,7 +47,7 @@ export default function LoginPage() {
 
     setSendingRecovery(true)
     const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(form.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}reset-password`,
     })
     setSendingRecovery(false)
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-violet-600 rounded-2xl mb-4">
             <Store className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Stands App</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Stands Flow</h1>
           <p className="text-gray-500 mt-1">Gestión y reserva de stands</p>
         </div>
 

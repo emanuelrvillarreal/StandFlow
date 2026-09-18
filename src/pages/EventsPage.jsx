@@ -56,7 +56,7 @@ export default function EventsPage() {
             <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xs">S</span>
             </div>
-            <span className="font-bold text-gray-800 text-base sm:text-lg">Stands App</span>
+            <span className="font-bold text-gray-800 text-base sm:text-lg">Stands Flow</span>
           </div>
 
           {/* Desktop Nav */}
