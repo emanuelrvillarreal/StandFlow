@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Instagram, Store, X } from 'lucide-react'
 import { STATUS_LABELS } from './adminHelpers'
+import { formatDateTime, formatBirthDate } from '../../lib/formatDateTime'
 
 const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 const PAYMENT_TYPE_STYLES = {
@@ -43,6 +44,7 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
               <p className="text-xs text-gray-400">Importe / Estado</p>
               <p className="font-bold text-violet-600">${reservation.amount.toLocaleString('es-AR')}</p>
               <p className="text-gray-500">{STATUS_LABELS[reservation.status]}</p>
+              {reservation.createdAt && <p className="text-[11px] text-gray-400 mt-1">Se anotó el {formatDateTime(reservation.createdAt)}</p>}
               <span className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${PAYMENT_TYPE_STYLES[paymentType]}`}>
                 {PAYMENT_TYPE_LABELS[paymentType]}
               </span>
@@ -83,6 +85,10 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400">Email</p>
                 <p className="font-medium break-all">{user?.email || '-'}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-400">Fecha de nacimiento</p>
+                <p className="font-medium">{formatBirthDate(user?.birthDate) || '-'}</p>
               </div>
             </div>
           </div>

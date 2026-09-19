@@ -3,7 +3,7 @@ import { X, Tag, DollarSign, Hash, Info } from 'lucide-react'
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
 const STATUS_STYLES = { available:'text-accent-soft bg-accent/10 border border-accent/30', pending:'text-yellow-300 bg-yellow-500/10 border border-yellow-500/30', reserved:'text-red-300 bg-red-500/10 border border-red-500/30', blocked:'text-muted bg-ink-700 border border-ink-600' }
 
-export default function StandModal({ stand, category, event, onClose, onReserve }) {
+export default function StandModal({ stand, category, event, onClose, onReserve, quotaReached = false, quota = 1 }) {
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-ink-800 border border-ink-600 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
@@ -47,15 +47,21 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-center">
-              <DollarSign size={16} className="text-accent-soft"/>
+          {stand.isSponsor ? (
+            <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm px-4 py-3 rounded-xl">
+              Este stand está reservado para Sponsors del evento.
             </div>
-            <div>
-              <p className="text-xs text-muted">Precio</p>
-              <p className="font-semibold text-white">${stand.price.toLocaleString('es-AR')}</p>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-center">
+                <DollarSign size={16} className="text-accent-soft"/>
+              </div>
+              <div>
+                <p className="text-xs text-muted">Precio</p>
+                <p className="font-semibold text-white">${stand.price.toLocaleString('es-AR')}</p>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${STATUS_STYLES[stand.status]}`}>
             <span className="w-2 h-2 rounded-full bg-current"/>
@@ -64,7 +70,17 @@ export default function StandModal({ stand, category, event, onClose, onReserve 
         </div>
 
         <div className="px-6 pb-6">
-          {stand.status === 'available' ? (
+          {stand.isSponsor ? (
+            <button disabled
+              className="w-full bg-ink-700 text-muted font-semibold py-3 rounded-xl cursor-not-allowed">
+              Solo para Sponsors
+            </button>
+          ) : stand.status === 'available' && quotaReached ? (
+            <button disabled
+              className="w-full bg-ink-700 text-muted font-semibold py-3 rounded-xl cursor-not-allowed">
+              {quota === 1 ? 'Ya tenés tu stand en este evento' : 'Alcanzaste tu máximo de stands'}
+            </button>
+          ) : stand.status === 'available' ? (
             <button onClick={() => onReserve(stand)}
               className="w-full bg-accent hover:bg-accent-soft text-ink-950 font-display font-bold py-3 rounded-xl transition shadow-glow">
               Reservar este stand

@@ -1,7 +1,7 @@
-import { Plus, Calendar, MapPin, Clock, Edit2, Map, Trash2 } from 'lucide-react'
+import { Plus, Calendar, MapPin, Clock, Edit2, Map, Trash2, ClipboardCheck } from 'lucide-react'
 import { formatEventDate } from '../../lib/formatEventDate'
 
-export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditEvent, onDeleteEvent }) {
+export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditEvent, onDeleteEvent, onOpenAttendance = () => {} }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -26,7 +26,12 @@ export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditE
                 </div>
               )}
               <div className="min-w-0">
-                <h3 className="font-bold text-gray-900 truncate">{ev.name}</h3>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="font-bold text-gray-900 truncate">{ev.name}</h3>
+                  <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${ev.requiresApproval ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {ev.requiresApproval ? 'Con confirmación' : 'Libre'}
+                  </span>
+                </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
                   <span className="flex items-center gap-1"><MapPin size={12} /> {ev.location}</span>
                   <span className="flex items-center gap-1"><Clock size={12} /> {formatEventDate(ev, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -34,6 +39,10 @@ export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditE
               </div>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button onClick={() => onOpenAttendance(ev)}
+                className="flex items-center gap-1.5 px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition text-xs font-semibold" title="Asistencia y pagos">
+                <ClipboardCheck size={16} /> Asistencia
+              </button>
               <button onClick={() => onEditEvent(ev)}
                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Editar evento">
                 <Edit2 size={18} />

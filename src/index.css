@@ -40,3 +40,79 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #0707
   background: inherit;
   animation: pulse-ring 1.5s infinite;
 }
+
+/* ---------- Movimiento liviano (solo transform/opacity: casi no usa CPU ni RAM) ---------- */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(40px, 30px, 0); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(-50px, -25px, 0); }
+}
+@keyframes line-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes bolt-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(46,230,214,0.25), 0 0 10px rgba(46,230,214,0.10); }
+  50%      { box-shadow: 0 0 0 1px rgba(46,230,214,0.45), 0 0 22px rgba(46,230,214,0.35); }
+}
+
+.anim-rise { animation: rise-in 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: calc(var(--i, 0) * 80ms); }
+
+/* Luces de fondo: degradados radiales (no usan blur, que es lo caro) que flotan despacio. */
+.ambient-blob { position: absolute; border-radius: 9999px; pointer-events: none; will-change: transform; }
+.ambient-a { background: radial-gradient(circle, rgba(46,230,214,0.16) 0%, transparent 65%); animation: drift-a 22s ease-in-out infinite; }
+.ambient-b { background: radial-gradient(circle, rgba(255,79,216,0.13) 0%, transparent 65%); animation: drift-b 26s ease-in-out infinite; }
+
+.title-line { transform-origin: left; animation: line-grow 0.9s 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.bolt-pulse { animation: bolt-pulse 3.2s ease-in-out infinite; }
+
+/* Tarjeta: se eleva y se ilumina al pasar el mouse; un brillo diagonal la cruza una vez. */
+.card-lift { position: relative; transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; }
+.card-lift::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(127,243,233,0.10) 50%, transparent 65%);
+  transform: translateX(-120%); transition: transform 0.7s ease;
+}
+.card-lift:hover { transform: translateY(-5px); box-shadow: 0 14px 34px -12px rgba(46,230,214,0.28), 0 0 0 1px rgba(46,230,214,0.22); }
+.card-lift:hover::after { transform: translateX(120%); }
+.card-lift:active { transform: translateY(-1px) scale(0.99); }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise, .ambient-blob, .title-line, .bolt-pulse { animation: none !important; }
+  .card-lift, .card-lift::after { transition: none !important; }
+}
+
+/* ---------- Panel de administración: neón sutil (solo visual) ---------- */
+.admin-header {
+  position: sticky;
+  background: linear-gradient(90deg, #5b21b6 0%, #4c1d95 55%, #3b1478 100%);
+}
+/* Línea de neón bajo la cabecera. */
+.admin-header::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #2ee6d6 30%, #ff4fd8 70%, transparent 100%);
+  box-shadow: 0 0 14px rgba(46, 230, 214, 0.45);
+  opacity: 0.9;
+}
+/* Sección activa del menú: brillo suave. */
+.admin-nav-active {
+  box-shadow: 0 0 0 1px rgba(46, 230, 214, 0.35), 0 10px 22px -10px rgba(91, 33, 182, 0.65);
+}
+/* Tarjetas del panel: se iluminan apenas al pasar el mouse (los modales quedan fuera). */
+.admin-main [class*="rounded-2xl"][class*="shadow-sm"] {
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.admin-main [class*="rounded-2xl"][class*="shadow-sm"]:hover {
+  box-shadow: 0 12px 28px -14px rgba(46, 230, 214, 0.40), 0 0 0 1px rgba(46, 230, 214, 0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-main [class*="rounded-2xl"][class*="shadow-sm"] { transition: none; }
+}

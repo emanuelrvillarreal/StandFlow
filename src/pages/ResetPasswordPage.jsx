@@ -49,18 +49,18 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/20 blur-[120px]" />
-      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-accent2/20 blur-[120px]" />
+      <div aria-hidden="true" className="ambient-blob ambient-a -top-32 -left-24 w-[30rem] h-[30rem]" />
+      <div aria-hidden="true" className="ambient-blob ambient-b -bottom-32 -right-24 w-[30rem] h-[30rem]" />
 
       <div className="w-full max-w-md relative">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 shadow-glow">
+        <div className="anim-rise text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 bolt-pulse">
             <Zap className="text-accent" size={30} />
           </div>
           <h1 className="text-3xl font-display font-bold tracking-wide text-white uppercase">Stands Flow</h1>
         </div>
 
-        <div className="bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
+        <div style={{ "--i": 1 }} className="anim-rise bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-accent/10 border border-accent/30 rounded-xl flex items-center justify-center text-accent">
               <Lock size={20} />

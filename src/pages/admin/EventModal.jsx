@@ -1,7 +1,14 @@
-import { Plus, Upload, Image as ImageIcon, Copy } from 'lucide-react'
+import { Plus, Upload, Image as ImageIcon, Copy, Sparkles, RefreshCw } from 'lucide-react'
+
+function generateSponsorCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(8))
+  return 'SP-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('')
+}
 
 export default function EventModal({ open, isEditing, events, eventForm, setEventForm, onFileUpload, onClose, onSave }) {
   if (!open) return null
+
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -70,6 +77,104 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
                 </select>
               </div>
             )}
+
+            <div className={`rounded-2xl border p-4 transition ${eventForm.requiresApproval ? 'bg-violet-50 border-violet-200' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Requiere confirmación</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    {eventForm.requiresApproval
+                      ? 'Con confirmación: los expositores envían una solicitud y solo los que vos apruebes pueden elegir stand.'
+                      : 'Libre: cualquier expositor registrado puede elegir su stand directamente.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!!eventForm.requiresApproval}
+                  onClick={() => setEventForm({ ...eventForm, requiresApproval: !eventForm.requiresApproval })}
+                  className={`relative flex-shrink-0 w-12 h-7 rounded-full transition ${eventForm.requiresApproval ? 'bg-violet-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${eventForm.requiresApproval ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+              {isEditing && (
+                <p className="text-[11px] text-gray-400 mt-2">
+                  Quienes ya tienen una reserva en este evento siguen pudiendo participar.
+                </p>
+              )}
+            </div>
+
+            <div className={`rounded-2xl border p-4 transition ${eventForm.sponsorsEnabled ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-gray-800 flex items-center gap-1.5"><Sparkles size={14} className="text-amber-500" /> Sponsors</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    {eventForm.sponsorsEnabled
+                      ? 'Habilitado: los Sponsors se registran con el código de este evento y eligen uno de los stands reservados para ellos. Es gratis.'
+                      : 'Este evento no tiene Sponsors.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label="Habilitar Sponsors"
+                  aria-checked={!!eventForm.sponsorsEnabled}
+                  onClick={() => setEventForm({ ...eventForm, sponsorsEnabled: !eventForm.sponsorsEnabled })}
+                  className={`relative flex-shrink-0 w-12 h-7 rounded-full transition ${eventForm.sponsorsEnabled ? 'bg-amber-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${eventForm.sponsorsEnabled ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+
+              {eventForm.sponsorsEnabled && (
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1 ml-1">Código de Sponsor</label>
+                    <div className="flex gap-2">
+                      <input type="text" value={eventForm.sponsorCode || ''}
+                        onChange={e => setEventForm({ ...eventForm, sponsorCode: e.target.value.toUpperCase() })}
+                        placeholder="Ej: SP-FERIA26"
+                        className="flex-1 min-w-0 px-4 py-2.5 border border-amber-200 rounded-2xl focus:ring-2 focus:ring-amber-400 outline-none transition bg-white font-mono tracking-wider text-sm" />
+                      <button type="button" onClick={() => setEventForm({ ...eventForm, sponsorCode: generateSponsorCode() })}
+                        className="px-3 py-2.5 bg-white border border-amber-200 rounded-2xl text-amber-700 hover:bg-amber-100 transition flex items-center gap-1.5 text-xs font-bold">
+                        <RefreshCw size={14} /> Generar
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1 ml-1">Cada evento tiene su propio código. Compartilo solo con los Sponsors.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1 ml-1">Configuración de Mapa (Sponsors)</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="flex items-center gap-2 p-3 border-2 border-dashed border-amber-200 rounded-2xl text-gray-400 hover:border-amber-400 hover:text-amber-600 transition cursor-pointer bg-white">
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => onFileUpload(e, 'mapImageSponsor')} />
+                        <Upload size={18} />
+                        <span className="text-sm font-bold text-gray-600">Subir Captura</span>
+                      </label>
+                      <div className="p-1 border-2 border-gray-100 rounded-2xl bg-white overflow-hidden min-h-[52px] relative">
+                        {eventForm.mapImageSponsor ? (
+                          <>
+                            <img src={eventForm.mapImageSponsor} className="w-full h-full object-cover" alt="Mapa de Sponsors" />
+                            <button type="button" onClick={() => setEventForm({ ...eventForm, mapImageSponsor: null })}
+                              className="absolute top-2 right-2 bg-white/90 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full shadow">Quitar</button>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 text-gray-400 p-3">
+                            <ImageIcon size={16} />
+                            <p className="text-sm font-bold">Sin imagen</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1 ml-1 leading-relaxed">
+                      Se ve como una pestaña "Sponsors" en el mapa del evento. Ahí, en modo edición, creás y ubicás los stands
+                      que van a poder elegir los Sponsors (sector Sponsors). Esos stands son gratis y no los pueden tomar los expositores.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Póster / Flyer del evento</label>

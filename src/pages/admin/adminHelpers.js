@@ -1,3 +1,5 @@
+import { formatDateTime } from '../../lib/formatDateTime'
+
 export const STATUS_LABELS = { pending: 'Pendiente', deposit_paid: 'Seña Paga', paid: 'Pagado', cancelled: 'Cancelado', reserved: 'Reservado' }
 
 export const STATUS_STYLES = {
@@ -11,7 +13,7 @@ export const STATUS_STYLES = {
 const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 
 export function exportCSV(reservations, events, users, stands, categories) {
-  const header = ['Evento', 'Stand', 'Nombre Stand', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Categoría', 'Compartido', 'Comparte con', 'Instagram', 'Importe', 'Tipo de pago', 'Estado']
+  const header = ['Evento', 'Stand', 'Nombre Stand', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Categoría', 'Compartido', 'Comparte con', 'Instagram', 'Importe', 'Tipo de pago', 'Estado', 'Fecha y hora de alta']
   const rows = reservations.map(r => {
     const ev = events.find(e => e.id === r.eventId)
     const st = ev?.stands.find(s => s.id === r.standId)
@@ -22,6 +24,7 @@ export function exportCSV(reservations, events, users, stands, categories) {
       user?.name ?? '', user?.lastName ?? '', user?.email ?? '', user?.phone ?? '',
       cat?.name ?? '', r.shared ? 'Sí' : 'No', r.sharedWith ?? '', r.instagram ?? '',
       r.amount, PAYMENT_TYPE_LABELS[r.paymentType || 'full'], STATUS_LABELS[r.status] ?? r.status,
+      formatDateTime(r.createdAt),
     ]
   })
   const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -38,6 +41,7 @@ export function toEventRow(event) {
     name: event.name,
     date: event.date,
     end_date: event.endDate || null,
+    requires_approval: !!event.requiresApproval,
     location: event.location,
     status: event.status,
     map_image: event.mapImage,
@@ -58,6 +62,7 @@ export function toStandRow(stand, eventId) {
     price: stand.price,
     status: stand.status,
     category_id: stand.categoryId || null,
+    is_sponsor_stand: stand.sector === 'sponsor',
   }
 }
 
@@ -73,6 +78,8 @@ export function toProfileRow(user) {
     email: user.email,
     phone: user.phone,
     business_name: user.businessName || null,
+    max_stands: Math.max(1, Number(user.maxStands) || 1),
+    birth_date: user.birthDate || null,
     role: Number(user.role_id) === 1 ? 'admin' : 'user',
     role_id: Number(user.role_id),
   }
@@ -88,6 +95,8 @@ export function mapProfile(profile) {
     businessPhoto: profile.businessPhoto ?? profile.business_photo ?? '',
     isBlocked: profile.isBlocked ?? profile.is_blocked ?? false,
     blockedReason: profile.blockedReason ?? profile.blocked_reason ?? '',
+    maxStands: Number(profile.maxStands ?? profile.max_stands ?? 1) || 1,
+    birthDate: profile.birthDate ?? profile.birth_date ?? '',
   }
 }
 

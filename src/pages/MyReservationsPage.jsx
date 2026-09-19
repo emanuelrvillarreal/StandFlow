@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { ArrowLeft, MessageCircle, Calendar, Tag, Store, Instagram, Pencil } from 'lucide-react'
 import { formatEventDate } from '../lib/formatEventDate'
+import { formatDateTime } from '../lib/formatDateTime'
 
 const STATUS_LABELS = { pending:'Pendiente', paid:'Pagado', cancelled:'Cancelado', reserved:'Reservado' }
 const STATUS_STYLES = {
@@ -71,7 +72,9 @@ export default function MyReservationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-950">
+    <div className="min-h-screen bg-ink-950 relative overflow-hidden">
+      <div aria-hidden="true" className="ambient-blob ambient-a -top-40 -left-40 w-[34rem] h-[34rem]" />
+      <div aria-hidden="true" className="ambient-blob ambient-b top-1/3 -right-48 w-[38rem] h-[38rem]" />
       <nav className="bg-ink-900/90 backdrop-blur border-b border-ink-700 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           <button onClick={() => navigate('/events')} className="text-muted hover:text-white transition">
@@ -116,12 +119,12 @@ export default function MyReservationsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {myRes.map(r => {
+            {myRes.map((r, idx) => {
               const ev = getEvent(r.eventId)
               const stand = getStand(r.eventId, r.standId)
               const cat = getCat(r.categoryId)
               return (
-                <div key={r.id} className="bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden">
+                <div key={r.id} style={{ "--i": idx + 1 }} className="anim-rise card-lift bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden">
                   <div className="px-5 py-4 border-b border-ink-600 flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-white">{ev?.name}</p>
@@ -160,7 +163,7 @@ export default function MyReservationsPage() {
                     )}
                     <div className="flex justify-between text-sm">
                       <span className="text-muted">Reservado el</span>
-                      <span className="text-muted">{new Date(r.createdAt).toLocaleDateString('es-AR')}</span>
+                      <span className="text-muted">{formatDateTime(r.createdAt)}</span>
                     </div>
                   </div>
 

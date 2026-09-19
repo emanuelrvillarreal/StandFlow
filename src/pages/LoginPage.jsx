@@ -38,8 +38,12 @@ export default function LoginPage() {
         return
       }
 
+      // Un Sponsor (tiene un registro propio) entra directo a su vista de consulta.
+      const { count: sponsorCount } = await supabase
+        .from('sponsor_registrations').select('id', { count: 'exact', head: true }).eq('user_id', data.user.id)
+
       const from = location.state?.from?.pathname
-      navigate(from || (profile?.role_id === 1 ? '/admin' : '/events'))
+      navigate(from || (profile?.role_id === 1 ? '/admin' : sponsorCount > 0 ? '/sponsor/panel' : '/events'))
     }
   }
 
@@ -68,19 +72,19 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/20 blur-[120px]" />
-      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-accent2/20 blur-[120px]" />
+      <div aria-hidden="true" className="ambient-blob ambient-a -top-32 -left-24 w-[30rem] h-[30rem]" />
+      <div aria-hidden="true" className="ambient-blob ambient-b -bottom-32 -right-24 w-[30rem] h-[30rem]" />
 
       <div className="w-full max-w-md relative">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 shadow-glow">
+        <div className="anim-rise text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 bolt-pulse">
             <Zap className="text-accent" size={30} />
           </div>
           <h1 className="text-3xl font-display font-bold tracking-wide text-white uppercase">Stands Flow</h1>
           <p className="text-muted text-sm mt-1">Gestión y reserva de stands</p>
         </div>
 
-        <div className="bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
+        <div style={{ "--i": 1 }} className="anim-rise bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
           <h2 className="text-xl font-display font-semibold text-white mb-6">Iniciar sesión</h2>
 
           {error && (
@@ -134,6 +138,10 @@ export default function LoginPage() {
           <p className="text-center text-muted text-sm mt-6">
             ¿No tenés cuenta?{' '}
             <Link to="/register" className="text-accent font-medium hover:text-accent-soft transition">Registrarse</Link>
+          </p>
+          <p className="text-center text-muted text-sm mt-3">
+            ¿Sos Sponsor?{' '}
+            <Link to="/sponsor" className="text-amber-400 font-medium hover:text-amber-300 transition">Registrate acá.</Link>
           </p>
           <p className="text-center text-muted text-xs mt-3">
             <Link to="/events" className="hover:text-muted transition">Ver eventos sin iniciar sesión</Link>

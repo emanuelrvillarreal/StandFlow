@@ -5,12 +5,15 @@ import { supabase } from '../lib/supabase'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', lastName: '', businessName: '', email: '', phone: '', password: '', confirm: '' })
+  const [form, setForm] = useState({ name: '', lastName: '', businessName: '', email: '', phone: '', birthDate: '', password: '', confirm: '' })
+  const todayISO = new Date().toISOString().slice(0, 10)
   const [error, setError] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (!form.birthDate) { setError('Ingresá tu fecha de nacimiento'); return }
+    if (form.birthDate > todayISO || form.birthDate < '1900-01-01') { setError('La fecha de nacimiento no es válida'); return }
     if (form.password !== form.confirm) { setError('Las contraseñas no coinciden'); return }
     if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
 
@@ -22,7 +25,8 @@ export default function RegisterPage() {
           name: form.name,
           lastName: form.lastName,
           businessName: form.businessName,
-          phone: form.phone
+          phone: form.phone,
+          birthDate: form.birthDate
         }
       }
     })
@@ -40,6 +44,7 @@ export default function RegisterPage() {
         business_name: form.businessName || null,
         email: form.email,
         phone: form.phone,
+        birth_date: form.birthDate,
         role: 'user',
         role_id: 2
       }, { onConflict: 'id' })
@@ -51,18 +56,18 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-32 -right-24 w-96 h-96 rounded-full bg-accent2/20 blur-[120px]" />
-      <div className="pointer-events-none absolute -bottom-32 -left-24 w-96 h-96 rounded-full bg-accent/20 blur-[120px]" />
+      <div aria-hidden="true" className="ambient-blob ambient-b -top-32 -right-24 w-[30rem] h-[30rem]" />
+      <div aria-hidden="true" className="ambient-blob ambient-a -bottom-32 -left-24 w-[30rem] h-[30rem]" />
 
       <div className="w-full max-w-md relative">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 shadow-glow">
+        <div className="anim-rise text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 bolt-pulse">
             <Zap className="text-accent" size={30} />
           </div>
           <h1 className="text-3xl font-display font-bold tracking-wide text-white uppercase">Stands Flow</h1>
         </div>
 
-        <div className="bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
+        <div style={{ "--i": 1 }} className="anim-rise bg-ink-800/80 backdrop-blur border border-ink-600 rounded-2xl shadow-2xl p-8">
           <div className="flex items-center gap-3 mb-6">
             <Link to="/login" className="text-muted hover:text-white transition"><ArrowLeft size={20} /></Link>
             <h2 className="text-xl font-display font-semibold text-white">Crear cuenta</h2>
@@ -97,6 +102,11 @@ export default function RegisterPage() {
               <label className="block text-sm font-medium text-muted mb-1">Teléfono</label>
               <input type="tel" required {...f('phone')}
                 className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="11 1234-5678" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Fecha de nacimiento</label>
+              <input type="date" required min="1900-01-01" max={todayISO} {...f('birthDate')}
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:dark]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-muted mb-1">Contraseña</label>

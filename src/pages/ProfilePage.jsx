@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Camera, Instagram, Store, Zap } from 'lucide-react'
+import { ArrowLeft, Camera, Instagram, Store, Zap, Cake } from 'lucide-react'
 
 export default function ProfilePage() {
   const { state, dispatch } = useApp()
@@ -13,7 +13,9 @@ export default function ProfilePage() {
     businessName: currentUser?.businessName || '',
     instagram: currentUser?.instagram || '',
     businessPhoto: currentUser?.businessPhoto || '',
+    birthDate: currentUser?.birthDate || '',
   })
+  const todayISO = new Date().toISOString().slice(0, 10)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -27,9 +29,13 @@ export default function ProfilePage() {
   }
 
   async function handleSave() {
-    setSaving(true)
     setMessage('')
     setError('')
+    if (form.birthDate && (form.birthDate > todayISO || form.birthDate < '1900-01-01')) {
+      setError('La fecha de nacimiento no es válida.')
+      return
+    }
+    setSaving(true)
 
     const { error: updateError } = await supabase
       .from('profiles')
@@ -37,6 +43,7 @@ export default function ProfilePage() {
         business_name: form.businessName || null,
         instagram: form.instagram || null,
         business_photo: form.businessPhoto || null,
+        birth_date: form.birthDate || null,
       })
       .eq('id', currentUser.id)
 
@@ -52,7 +59,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-950">
+    <div className="min-h-screen bg-ink-950 relative overflow-hidden">
+      <div aria-hidden="true" className="ambient-blob ambient-a -top-40 -left-40 w-[34rem] h-[34rem]" />
+      <div aria-hidden="true" className="ambient-blob ambient-b top-1/3 -right-48 w-[38rem] h-[38rem]" />
       <nav className="bg-ink-900/90 backdrop-blur border-b border-ink-700 sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <button onClick={() => navigate('/events')} className="text-muted hover:text-white transition">
@@ -63,7 +72,7 @@ export default function ProfilePage() {
       </nav>
 
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="bg-ink-800 border border-ink-600 rounded-2xl p-6 sm:p-8 space-y-6">
+        <div className="anim-rise bg-ink-800 border border-ink-600 rounded-2xl p-6 sm:p-8 space-y-6">
           <div>
             <h2 className="text-lg font-display font-semibold text-white mb-1">Datos de tu emprendimiento</h2>
             <p className="text-sm text-muted">Esto se va a mostrar cuando reserves un stand, para que los organizadores sepan quién sos.</p>
@@ -103,6 +112,16 @@ export default function ProfilePage() {
             <input type="text" value={form.instagram} onChange={e => setForm({ ...form, instagram: e.target.value })}
               placeholder="@tuemprendimiento"
               className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-muted mb-1.5">
+              <Cake size={14} /> Fecha de nacimiento
+            </label>
+            <input type="date" min="1900-01-01" max={todayISO} value={form.birthDate}
+              onChange={e => setForm({ ...form, birthDate: e.target.value })}
+              className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:dark]" />
+            {!form.birthDate && <p className="text-xs text-yellow-300/90 mt-1.5">Todavía no cargaste tu fecha de nacimiento.</p>}
           </div>
 
           <button onClick={handleSave} disabled={saving}

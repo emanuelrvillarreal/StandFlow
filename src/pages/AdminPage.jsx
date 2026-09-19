@@ -4,7 +4,7 @@ import { useApp } from '../store'
 import { supabase, createIsolatedAuthClient } from '../lib/supabase'
 import {
   LayoutDashboard, Users, Calendar, Tag, LogOut,
-  Eye, TrendingUp, Settings, ClipboardList,
+  Eye, TrendingUp, Settings, ClipboardList, UserCheck, Sparkles, Menu, X, ClipboardCheck, Zap,
 } from 'lucide-react'
 import {
   createUuid, normalizePhone, toEventRow, toStandRow, toProfileRow, mapProfile,
@@ -15,6 +15,10 @@ import ReservationsTab from './admin/ReservationsTab'
 import FinancesTab from './admin/FinancesTab'
 import CategoriesTab from './admin/CategoriesTab'
 import UsersTab from './admin/UsersTab'
+import RequestsTab from './admin/RequestsTab'
+import SponsorsTab from './admin/SponsorsTab'
+import SponsorMemberModal from './admin/SponsorMemberModal'
+import AttendanceTab from './admin/AttendanceTab'
 import SettingsTab from './admin/SettingsTab'
 import ReservationDetailModal from './admin/ReservationDetailModal'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -23,16 +27,23 @@ import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
 
 const EMPTY_EVENT_FORM = {
-  name: '', date: '', endDate: '', location: '', status: 'upcoming', whatsapp: '', paymentInstructions: '',
-  posterImage: null, mapImageSalon: null, mapImageGaleria: null, copyFrom: 'none',
+  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, whatsapp: '', paymentInstructions: '',
+  posterImage: null, mapImageSalon: null, mapImageGaleria: null, mapImageSponsor: null, copyFrom: 'none',
+  sponsorsEnabled: false, sponsorCode: '',
 }
 
 export default function AdminPage() {
-  const { state, dispatch, logout, refreshUsers } = useApp()
+  const { state, dispatch, logout, refreshUsers, refreshEventRequests, refreshSponsors, reloadData } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const { events, reservations, users, categories, currentUser, expenses } = state
+  const eventRequests = state.eventRequests || []
   const [tab, setTab] = useState('dashboard')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [attendanceEventId, setAttendanceEventId] = useState('')
+  const [memberModal, setMemberModal] = useState(null) // { registration, member|null, eventName, standNumber }
+  const [savingMember, setSavingMember] = useState(false)
+  const [memberError, setMemberError] = useState('')
   const [filterEventId, setFilterEventId] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
@@ -56,6 +67,8 @@ export default function AdminPage() {
     phone: '',
     password: '',
     role_id: 2,
+    maxStands: 1,
+    birthDate: '',
   })
   const [userError, setUserError] = useState('')
   const [savingUser, setSavingUser] = useState(false)
@@ -78,8 +91,9 @@ export default function AdminPage() {
   // cambiado o haberse registrado después de abrir el panel: se refrescan al
   // entrar a las pestañas que los muestran.
   useEffect(() => {
-    if (tab === 'reservations' || tab === 'users' || tab === 'finances') refreshUsers()
-  }, [tab, refreshUsers])
+    if (tab === 'reservations' || tab === 'users' || tab === 'finances' || tab === 'requests') refreshUsers()
+    if (tab === 'requests') refreshEventRequests()
+  }, [tab, refreshUsers, refreshEventRequests])
 
   useEffect(() => {
     if (location.state?.openNewEventModal) {
@@ -100,7 +114,7 @@ export default function AdminPage() {
   }
 
   const allStands = events.flatMap(e => e.stands)
-  const totalAvailable = allStands.filter(s => s.status === 'available').length
+  const totalAvailable = allStands.filter(s => s.status === 'available' && s.sector !== 'sponsor').length
   const totalPending = reservations.filter(r => r.status === 'pending').length
   const totalDeposit = reservations.filter(r => r.status === 'deposit_paid').length
   const totalPaid = reservations.filter(r => r.status === 'paid').length
@@ -129,6 +143,8 @@ export default function AdminPage() {
   const ACTIVE_RES_STATUSES = ['pending', 'deposit_paid', 'paid', 'reserved']
   const orphanStands = allStands.filter(s => {
     if (s.status !== 'pending' && s.status !== 'reserved') return false
+    // Un stand tomado por un Sponsor no tiene reserva a propósito (es gratis).
+    if ((state.sponsorRegistrations || []).some(r => r.standId === s.id)) return false
     return !reservations.some(r => r.standId === s.id && ACTIVE_RES_STATUSES.includes(r.status))
   }).map(s => {
     const ev = events.find(e => e.stands.some(st => st.id === s.id))
@@ -387,6 +403,7 @@ export default function AdminPage() {
       name: event.name || '',
       date: event.date || '',
       endDate: event.endDate || '',
+      requiresApproval: !!event.requiresApproval,
       location: event.location || '',
       status: event.status || 'upcoming',
       whatsapp: event.whatsapp || '',
@@ -395,8 +412,38 @@ export default function AdminPage() {
       mapImageSalon: event.mapImage?.salon || null,
       mapImageGaleria: event.mapImage?.galeria || null,
       copyFrom: 'none',
+      sponsorsEnabled: !!event.sponsors?.enabled,
+      sponsorCode: event.sponsors?.code || '',
+      mapImageSponsor: event.sponsors?.image || null,
     })
     setShowEventModal(true)
+  }
+
+  // Guarda la configuración de Sponsors del evento (habilitado y código). El mapa y
+  // los stands de Sponsors se manejan como los de Salón/Galería (sector "sponsor").
+  // Devuelve un mensaje de error o null.
+  async function saveSponsorConfig(eventId, form) {
+    const code = (form.sponsorCode || '').trim().toUpperCase()
+    const { error: cfgError } = await supabase.from('event_sponsor_settings').upsert({
+      event_id: eventId,
+      enabled: !!form.sponsorsEnabled,
+      code: code || null,
+      image: form.mapImageSponsor || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'event_id' })
+    if (cfgError) {
+      return cfgError.code === '23505'
+        ? 'Ese código de Sponsor ya lo usa otro evento. Elegí uno distinto.'
+        : `No se pudo guardar la configuración de Sponsors: ${cfgError.message}`
+    }
+    return null
+  }
+
+  function sponsorFormError() {
+    if (eventForm.sponsorsEnabled && !(eventForm.sponsorCode || '').trim()) {
+      return 'Para habilitar Sponsors cargá un código (o generá uno).'
+    }
+    return null
   }
 
   async function handleCreateEvent() {
@@ -406,6 +453,7 @@ export default function AdminPage() {
       name: eventForm.name,
       date: eventForm.date,
       endDate: eventForm.endDate || null,
+      requiresApproval: !!eventForm.requiresApproval,
       location: eventForm.location,
       status: 'upcoming',
       posterImage: eventForm.posterImage || sourceEvent?.posterImage || null,
@@ -423,8 +471,10 @@ export default function AdminPage() {
           id: createUuid(),
           status: 'available',
           categoryId: null,
+          isSponsor: stand.sector === 'sponsor',
         }))
         : [],
+      sponsors: { enabled: false, code: '' },
     }
 
     const { error: eventError } = await supabase.from('events').insert(toEventRow(newEvent))
@@ -443,6 +493,15 @@ export default function AdminPage() {
       }
     }
 
+    if (eventForm.sponsorsEnabled) {
+      const sponsorError = await saveSponsorConfig(newEvent.id, eventForm)
+      if (sponsorError) {
+        alert(`El evento se creó, pero: ${sponsorError}`)
+      } else {
+        newEvent.sponsors = { enabled: true, code: (eventForm.sponsorCode || '').trim().toUpperCase(), image: eventForm.mapImageSponsor || null }
+      }
+    }
+
     dispatch({ type: 'ADD_EVENT', event: newEvent })
     setShowEventModal(false)
     setEventForm(EMPTY_EVENT_FORM)
@@ -455,6 +514,7 @@ export default function AdminPage() {
       name: eventForm.name,
       date: eventForm.date,
       endDate: eventForm.endDate || null,
+      requiresApproval: !!eventForm.requiresApproval,
       location: eventForm.location,
       status: eventForm.status,
       whatsapp: eventForm.whatsapp,
@@ -472,14 +532,103 @@ export default function AdminPage() {
       return
     }
 
+    const sponsorsChanged =
+      !!editingEvent.sponsors?.enabled !== !!eventForm.sponsorsEnabled ||
+      (editingEvent.sponsors?.code || '') !== (eventForm.sponsorCode || '').trim().toUpperCase() ||
+      (editingEvent.sponsors?.image || null) !== (eventForm.mapImageSponsor || null)
+    if (sponsorsChanged) {
+      const sponsorError = await saveSponsorConfig(editingEvent.id, eventForm)
+      if (sponsorError) {
+        alert(sponsorError)
+        return
+      }
+      updatedEvent.sponsors = {
+        enabled: !!eventForm.sponsorsEnabled,
+        code: (eventForm.sponsorCode || '').trim().toUpperCase(),
+        image: eventForm.mapImageSponsor || null,
+      }
+    }
+
     dispatch({ type: 'UPDATE_EVENT', event: updatedEvent })
     setShowEventModal(false)
     setEditingEvent(null)
     setEventForm(EMPTY_EVENT_FORM)
   }
 
+  // Integrantes de un Sponsor: el admin puede sumar, corregir o quitar personas
+  // (por ejemplo si cambia alguien del equipo) sin tocar la base a mano.
+  function openMemberModal(registration, member = null) {
+    const ev = events.find(e => e.id === registration.eventId)
+    const stand = ev?.stands.find(s => s.id === registration.standId)
+    setMemberError('')
+    setMemberModal({ registration, member, eventName: ev?.name || 'Evento', standNumber: stand?.number ?? '' })
+  }
+
+  async function handleSaveMember(form) {
+    const { registration, member } = memberModal
+    setSavingMember(true)
+    setMemberError('')
+    const row = {
+      first_name: form.firstName.trim(), last_name: form.lastName.trim(), dni: form.dni.trim(),
+      phone: form.phone.trim(), email: form.email.trim(), birth_date: form.birthDate || null,
+    }
+    const { error } = member
+      ? await supabase.from('sponsor_members').update(row).eq('id', member.id)
+      : await supabase.from('sponsor_members').insert({
+          ...row,
+          registration_id: registration.id,
+          position: registration.members.reduce((max, m, i) => Math.max(max, i), -1) + 1,
+        })
+    setSavingMember(false)
+    if (error) { setMemberError(`No se pudo guardar: ${error.message}`); return }
+    await refreshSponsors()
+    setMemberModal(null)
+  }
+
+  function requestDeleteMember(registration, member) {
+    if (registration.members.length <= 1) {
+      alert('Tiene que quedar al menos un integrante. Si querés dar de baja al Sponsor, usá "Liberar stand".')
+      return
+    }
+    requestConfirm({
+      title: '¿Quitar a este integrante?',
+      itemLabel: `${member.firstName} ${member.lastName}`,
+      message: 'Se elimina de la lista del Sponsor (y su asistencia registrada). El stand y los demás integrantes no cambian.',
+      confirmLabel: 'Sí, quitar',
+      tone: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('sponsor_members').delete().eq('id', member.id)
+        if (error) { alert(`No se pudo quitar al integrante: ${error.message}`); return }
+        await refreshSponsors()
+      },
+    })
+  }
+
+  function requestDeleteSponsorRegistration(reg) {
+    const ev = events.find(e => e.id === reg.eventId)
+    const stand = ev?.stands.find(s => s.id === reg.standId)
+    requestConfirm({
+      title: '¿Liberar el stand de este Sponsor?',
+      itemLabel: `${ev?.name || 'Evento'} · Stand ${stand?.number ?? ''}`,
+      message: 'Se elimina el registro del Sponsor y sus integrantes, y el stand vuelve a quedar disponible para otro Sponsor.',
+      confirmLabel: 'Liberar stand',
+      tone: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('sponsor_registrations').delete().eq('id', reg.id)
+        if (error) {
+          alert(`No se pudo eliminar el registro: ${error.message}`)
+          return
+        }
+        await refreshSponsors()
+        dispatch({ type: 'UPDATE_STAND', eventId: reg.eventId, standId: reg.standId, updates: { status: 'available', categoryId: null } })
+      },
+    })
+  }
+
   function handleSaveEvent() {
     if (!eventForm.name || !eventForm.date) return
+    const spError = sponsorFormError()
+    if (spError) { alert(spError); return }
     return editingEvent ? handleUpdateEvent() : handleCreateEvent()
   }
 
@@ -516,7 +665,7 @@ export default function AdminPage() {
   function openCreateUserModal() {
     setEditingUser(null)
     setUserError('')
-    setUserForm({ name: '', lastName: '', businessName: '', email: '', phone: '', password: '', role_id: 2 })
+    setUserForm({ name: '', lastName: '', businessName: '', email: '', phone: '', password: '', role_id: 2, maxStands: 1, birthDate: '' })
     setShowUserModal(true)
   }
 
@@ -531,6 +680,8 @@ export default function AdminPage() {
       phone: user.phone || '',
       password: '',
       role_id: user.role_id || 2,
+      maxStands: user.maxStands || 1,
+      birthDate: user.birthDate || '',
     })
     setShowUserModal(true)
   }
@@ -640,10 +791,10 @@ export default function AdminPage() {
     }
 
     requestConfirm({
-      title: '¿Eliminar este usuario?',
+      title: '¿Dar de baja este usuario?',
       itemLabel: `${user.name} ${user.lastName}`,
-      message: 'Esta acción no se puede deshacer.',
-      confirmLabel: 'Sí, eliminar',
+      message: 'La cuenta deja de poder ingresar y desaparece de esta lista. Un sysadmin después puede eliminarla definitivamente de la base.',
+      confirmLabel: 'Sí, dar de baja',
       onConfirm: async () => {
         const { error } = await supabase
           .from('profiles')
@@ -655,6 +806,27 @@ export default function AdminPage() {
         }
 
         dispatch({ type: 'DELETE_USER', id: user.id })
+      },
+    })
+  }
+
+  // Eliminación definitiva (solo sysadmin): la cuenta desaparece de la base y del
+  // sistema de usuarios. La base lo vuelve a verificar.
+  function handlePurgeUser(user) {
+    requestConfirm({
+      title: '¿Eliminar definitivamente esta cuenta?',
+      itemLabel: `${user.name} ${user.lastName} · ${user.email}`,
+      message: 'Se borra de la base de datos y no se puede recuperar: también se eliminan sus reservas y solicitudes, y sus stands quedan libres. El mail queda disponible para volver a registrarse.',
+      confirmLabel: 'Sí, eliminar definitivamente',
+      onConfirm: async () => {
+        const { error } = await supabase.rpc('purge_user_account', { p_user_id: user.id })
+        if (error) {
+          alert(`No se pudo eliminar la cuenta: ${error.message}`)
+          return
+        }
+        dispatch({ type: 'REMOVE_DELETED_USER', id: user.id })
+        // Sus reservas y stands cambiaron: se vuelven a traer los datos.
+        reloadData()
       },
     })
   }
@@ -727,9 +899,46 @@ export default function AdminPage() {
     alert('Configuración guardada correctamente')
   }
 
+  async function decideRequest(request, status) {
+    const decidedAt = new Date().toISOString()
+    const { error } = await supabase
+      .from('event_requests')
+      .update({ status, decided_at: decidedAt })
+      .eq('id', request.id)
+
+    if (error) {
+      alert(`No se pudo actualizar la solicitud: ${error.message}`)
+      return
+    }
+
+    dispatch({ type: 'UPSERT_EVENT_REQUEST', request: { ...request, status, decidedAt } })
+  }
+
+  function handleDecideRequest(request, status) {
+    if (request.status === 'approved' && status === 'rejected') {
+      const u = users.find(x => x.id === request.userId)
+      requestConfirm({
+        title: '¿Revocar la aprobación?',
+        itemLabel: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim(),
+        message: 'Ya no va a poder tomar nuevos stands en este evento. Las reservas que ya tiene se mantienen.',
+        confirmLabel: 'Sí, revocar',
+        onConfirm: () => decideRequest(request, status),
+      })
+      return
+    }
+    decideRequest(request, status)
+  }
+
+  const pendingRequestsCount = eventRequests.filter(r =>
+    r.status === 'pending' && events.find(e => e.id === r.eventId)?.requiresApproval
+  ).length
+
   const TABS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'events', label: 'Eventos', icon: Calendar },
+    { id: 'requests', label: 'Solicitudes de stand', icon: UserCheck, badge: pendingRequestsCount },
+    { id: 'attendance', label: 'Asistencia', icon: ClipboardCheck },
+    { id: 'sponsors', label: 'Sponsors', icon: Sparkles, badge: 0 },
     { id: 'reservations', label: 'Reservas', icon: ClipboardList },
     { id: 'finances', label: 'Finanzas', icon: TrendingUp },
     { id: 'categories', label: 'Categorías', icon: Tag },
@@ -738,38 +947,65 @@ export default function AdminPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-violet-700 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative">
+      {/* Luces de fondo muy suaves (solo decoración). */}
+      <div aria-hidden="true" className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="ambient-blob ambient-a -top-40 -right-32 w-[36rem] h-[36rem] opacity-70" />
+        <div className="ambient-blob ambient-b bottom-0 left-1/3 w-[40rem] h-[40rem] opacity-60" />
+      </div>
+      <header className="admin-header text-white sticky top-0 z-40">
+        <div className="px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
-              <LayoutDashboard size={16} />
+            <button onClick={() => setMenuOpen(o => !o)} aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menuOpen}
+              className="lg:hidden w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition">
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            <div className="hidden sm:flex w-8 h-8 bg-white/10 border border-accent/40 rounded-xl items-center justify-center bolt-pulse">
+              <Zap size={16} className="text-accent" />
             </div>
             <span className="font-bold text-lg">Panel Administrador</span>
           </div>
           <div className="flex gap-2">
             <button onClick={() => navigate('/events')}
               className="text-sm bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-              <Eye size={14} /> Ver eventos
+              <Eye size={14} /> <span className="hidden sm:inline">Ver eventos</span>
             </button>
             <button onClick={async () => { await logout(); navigate('/') }}
               className="text-sm bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-              <LogOut size={14} /> Salir
+              <LogOut size={14} /> <span className="hidden sm:inline">Salir</span>
             </button>
           </div>
         </div>
-
-        <div className="max-w-6xl mx-auto px-4 flex gap-1 pb-0 overflow-x-auto">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-xl transition whitespace-nowrap ${tab === t.id ? 'bg-gray-50 text-violet-700' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
-              <t.icon size={14} />{t.label}
-            </button>
-          ))}
-        </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+      <div className="flex-1 flex w-full max-w-[90rem] mx-auto">
+        {menuOpen && (
+          <div className="fixed inset-0 top-16 bg-black/40 z-30 lg:hidden" onClick={() => setMenuOpen(false)} />
+        )}
+
+        <aside className={`fixed lg:sticky top-16 left-0 z-30 w-64 flex-shrink-0 h-[calc(100vh-4rem)] bg-white border-r border-gray-100 overflow-y-auto transition-transform duration-200 lg:translate-x-0 ${menuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+          <nav aria-label="Secciones del panel" className="p-3 space-y-1">
+            {TABS.map(t => {
+              const active = tab === t.id
+              return (
+                <button key={t.id} onClick={() => { setTab(t.id); setMenuOpen(false) }} aria-current={active ? 'page' : undefined}
+                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
+                    active ? 'admin-nav-active bg-violet-600 text-white' : 'text-gray-600 hover:bg-violet-50 hover:text-violet-700'
+                  }`}>
+                  {active && <span aria-hidden="true" className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-accent shadow-[0_0_10px_#2ee6d6]" />}
+                  <t.icon size={18} className="flex-shrink-0" />
+                  <span className="flex-1 text-left">{t.label}</span>
+                  {t.badge > 0 && (
+                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${active ? 'bg-white text-violet-700' : 'bg-amber-400 text-violet-900'}`}>{t.badge}</span>
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+        </aside>
+
+      <main className="admin-main relative z-10 flex-1 min-w-0 px-4 py-6">
+      <div key={tab} className="anim-rise">
         {tab === 'dashboard' && (
           <DashboardTab
             events={events} reservations={reservations} categories={categories}
@@ -785,6 +1021,32 @@ export default function AdminPage() {
             onOpenCreateEvent={openCreateEventModal}
             onEditEvent={openEditEventModal}
             onDeleteEvent={requestDeleteEvent}
+            onOpenAttendance={(ev) => { setAttendanceEventId(ev.id); setTab('attendance') }}
+          />
+        )}
+
+        {tab === 'requests' && (
+          <RequestsTab
+            eventRequests={eventRequests} events={events} users={users}
+            onDecide={handleDecideRequest}
+          />
+        )}
+
+        {tab === 'attendance' && (
+          <AttendanceTab
+            events={events} reservations={reservations} users={users}
+            sponsorRegistrations={state.sponsorRegistrations || []}
+            initialEventId={attendanceEventId}
+          />
+        )}
+
+        {tab === 'sponsors' && (
+          <SponsorsTab
+            sponsorRegistrations={state.sponsorRegistrations || []} events={events} users={users}
+            onDeleteRegistration={requestDeleteSponsorRegistration}
+            onAddMember={(reg) => openMemberModal(reg)}
+            onEditMember={(reg, m) => openMemberModal(reg, m)}
+            onDeleteMember={requestDeleteMember}
           />
         )}
 
@@ -833,6 +1095,9 @@ export default function AdminPage() {
             onOpenCreateUser={openCreateUserModal}
             onOpenEditUser={openEditUserModal}
             onDeleteUser={handleDeleteUser}
+            isSysadmin={!!currentUser?.isSysadmin}
+            deletedUsers={state.deletedUsers || []}
+            onPurgeUser={handlePurgeUser}
             onResetPassword={handleResetUserPassword}
             onBlockUser={openBlockUserModal}
             onUnblockUser={handleUnblockUser}
@@ -845,7 +1110,9 @@ export default function AdminPage() {
             onSaveSettings={handleSaveSettings}
           />
         )}
+      </div>
       </main>
+      </div>
 
       <ReservationDetailModal
         detail={reservationDetail}
@@ -864,6 +1131,14 @@ export default function AdminPage() {
         savingUser={savingUser}
         onClose={() => setShowUserModal(false)}
         onSave={handleSaveUser}
+      />
+
+      <SponsorMemberModal
+        target={memberModal}
+        saving={savingMember}
+        error={memberError}
+        onClose={() => setMemberModal(null)}
+        onSave={handleSaveMember}
       />
 
       <BlockUserModal

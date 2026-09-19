@@ -51,6 +51,7 @@ export default function EditStandModal({ stand, categories, onSave, onDelete, on
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white">
                 <option value="salon">Salón</option>
                 <option value="galeria">Galería</option>
+                <option value="sponsor">Sponsors</option>
               </select>
             </div>
           </div>

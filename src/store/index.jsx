@@ -202,8 +202,17 @@ function reducer(state, action) {
       return { ...state, users: [...state.users, action.user] }
     case 'UPDATE_USER':
       return { ...state, users: state.users.map(u => u.id === action.user.id ? action.user : u) }
-    case 'DELETE_USER':
-      return { ...state, users: state.users.filter(u => u.id !== action.id) }
+    case 'DELETE_USER': {
+      // Borrado lógico: deja de verse en Usuarios y pasa a "dadas de baja".
+      const gone = state.users.find(u => u.id === action.id)
+      return {
+        ...state,
+        users: state.users.filter(u => u.id !== action.id),
+        deletedUsers: gone ? [...state.deletedUsers, { ...gone, role_id: -1 }] : state.deletedUsers,
+      }
+    }
+    case 'REMOVE_DELETED_USER':
+      return { ...state, deletedUsers: state.deletedUsers.filter(u => u.id !== action.id) }
     case 'ADD_RESERVATION':
       return {
         ...state,
@@ -327,6 +336,9 @@ function reducer(state, action) {
         reservations: action.reservations,
         expenses: action.expenses || [],
         users: action.users ?? state.users,
+        deletedUsers: action.deletedUsers ?? state.deletedUsers,
+        eventRequests: action.eventRequests ?? state.eventRequests,
+        sponsorRegistrations: action.sponsorRegistrations ?? state.sponsorRegistrations,
         settings: action.settings ?? state.settings,
         loading: false 
       }
@@ -349,7 +361,22 @@ function reducer(state, action) {
       }
     }
     case 'SET_USERS':
-      return { ...state, users: action.users }
+      return { ...state, users: action.users, deletedUsers: action.deletedUsers ?? state.deletedUsers }
+    case 'SET_SPONSOR_REGISTRATIONS':
+      return { ...state, sponsorRegistrations: action.sponsorRegistrations }
+    case 'SET_EVENT_REQUESTS':
+      return { ...state, eventRequests: action.eventRequests }
+    case 'UPSERT_EVENT_REQUEST': {
+      const exists = state.eventRequests.some(r => r.id === action.request.id)
+      return {
+        ...state,
+        eventRequests: exists
+          ? state.eventRequests.map(r => r.id === action.request.id ? action.request : r)
+          : [...state.eventRequests, action.request],
+      }
+    }
+    case 'REMOVE_EVENT_REQUEST':
+      return { ...state, eventRequests: state.eventRequests.filter(r => r.id !== action.id) }
     case 'ADD_EXPENSE':
       return { ...state, expenses: [...state.expenses, action.expense] }
     case 'DELETE_EXPENSE':
@@ -361,6 +388,8 @@ function reducer(state, action) {
         ...state,
         events: state.events.filter(ev => ev.id !== action.eventId),
         reservations: state.reservations.filter(res => res.eventId !== action.eventId),
+        eventRequests: state.eventRequests.filter(r => r.eventId !== action.eventId),
+        sponsorRegistrations: state.sponsorRegistrations.filter(r => r.eventId !== action.eventId),
       }
     default:
       return state
@@ -382,6 +411,35 @@ function mapProfile(profile) {
     businessPhoto: profile.businessPhoto ?? profile.business_photo ?? '',
     isBlocked: profile.isBlocked ?? profile.is_blocked ?? false,
     blockedReason: profile.blockedReason ?? profile.blocked_reason ?? '',
+    maxStands: Number(profile.maxStands ?? profile.max_stands ?? 1) || 1,
+    isSysadmin: !!(profile.isSysadmin ?? profile.is_sysadmin),
+    birthDate: profile.birthDate ?? profile.birth_date ?? '',
+  }
+}
+
+function mapSponsorRegistration(r, members) {
+  return {
+    id: r.id,
+    eventId: r.event_id,
+    standId: r.stand_id,
+    userId: r.user_id,
+    createdAt: r.created_at,
+    members: members
+      .filter(m => m.registration_id === r.id)
+      .sort((a, b) => a.position - b.position)
+      .map(m => ({ id: m.id, firstName: m.first_name, lastName: m.last_name, dni: m.dni, phone: m.phone, email: m.email, birthDate: m.birth_date || '' })),
+  }
+}
+
+function mapEventRequest(r) {
+  return {
+    id: r.id,
+    eventId: r.event_id,
+    userId: r.user_id,
+    status: r.status,
+    message: r.message || '',
+    createdAt: r.created_at,
+    decidedAt: r.decided_at,
   }
 }
 
@@ -455,6 +513,9 @@ export function AppProvider({ children }) {
     users: INITIAL_USERS, // Restauramos los usuarios de prueba
     events: [],
     reservations: [],
+    eventRequests: [],
+    sponsorRegistrations: [],
+    deletedUsers: [],
     categories: [],
     settings: INITIAL_SETTINGS,
     loading: true
@@ -481,7 +542,11 @@ export function AppProvider({ children }) {
         { data: reservations, error: resError },
         { data: profiles, error: profilesError },
         { data: expenses, error: expError },
-        { data: appSettings, error: settingsError }
+        { data: appSettings, error: settingsError },
+        { data: requestRows },
+        { data: sponsorSettingRows },
+        { data: sponsorRegRows },
+        { data: sponsorMemberRows }
       ] = await Promise.all([
         fetchAllRows('categories', 'id'),
         fetchAllRows('events', 'date'),
@@ -489,7 +554,13 @@ export function AppProvider({ children }) {
         fetchAllRows('reservations', 'created_at'),
         fetchAllRows('profiles', 'id'),
         fetchAllRows('expenses', 'created_at'),
-        supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle()
+        supabase.from('app_settings').select('*').eq('id', 'whatsapp').maybeSingle(),
+        fetchAllRows('event_requests', 'created_at'),
+        // Sponsors: solo el admin ve la config (con el código) y todos los registros;
+        // un Sponsor ve el suyo. Si el SQL de sponsors todavía no se corrió, queda vacío.
+        fetchAllRows('event_sponsor_settings', 'event_id'),
+        fetchAllRows('sponsor_registrations', 'created_at'),
+        fetchAllRows('sponsor_members', 'position')
       ])
 
       // Sin sesión, profiles/reservations están restringidos por RLS y
@@ -514,7 +585,8 @@ export function AppProvider({ children }) {
       const mappedStands = (stands || []).map(s => ({
         ...s,
         categoryId: s.category_id,
-        eventId: s.event_id
+        eventId: s.event_id,
+        isSponsor: s.sector === 'sponsor'
       }))
 
       const mappedReservations = (reservations || []).map(r => ({
@@ -532,12 +604,18 @@ export function AppProvider({ children }) {
 
       const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)
       const mappedUsers = (profiles || []).filter(p => p.role_id !== -1).map(mapProfile)
+      const mappedDeletedUsers = (profiles || []).filter(p => p.role_id === -1).map(mapProfile)
       const eventsWithStands = (events || []).map(ev => ({
         ...ev,
         mapImage: ev.map_image,
         posterImage: ev.poster_image,
         endDate: ev.end_date,
+        requiresApproval: !!ev.requires_approval,
         paymentInstructions: ev.payment_instructions,
+        sponsors: (() => {
+          const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
+          return { enabled: !!cfg?.enabled, code: cfg?.code || '', image: cfg?.image || null }
+        })(),
         stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id)
       }))
 
@@ -548,6 +626,9 @@ export function AppProvider({ children }) {
         reservations: mappedReservations,
         expenses: expenses || [],
         users: mappedUsers,
+        deletedUsers: mappedDeletedUsers,
+        eventRequests: (requestRows || []).map(mapEventRequest),
+        sponsorRegistrations: (sponsorRegRows || []).map(r => mapSponsorRegistration(r, sponsorMemberRows || [])),
         settings: appSettings?.value ? { ...INITIAL_SETTINGS, ...appSettings.value } : INITIAL_SETTINGS
       })
     } catch (err) {
@@ -560,7 +641,27 @@ export function AppProvider({ children }) {
   const refreshUsers = useCallback(async () => {
     const { data, error } = await fetchAllRows('profiles', 'id')
     if (error || !data) return
-    dispatch({ type: 'SET_USERS', users: data.filter(p => p.role_id !== -1).map(mapProfile) })
+    dispatch({
+      type: 'SET_USERS',
+      users: data.filter(p => p.role_id !== -1).map(mapProfile),
+      deletedUsers: data.filter(p => p.role_id === -1).map(mapProfile),
+    })
+  }, [])
+
+  const refreshEventRequests = useCallback(async () => {
+    const { data, error } = await fetchAllRows('event_requests', 'created_at')
+    if (error || !data) return
+    dispatch({ type: 'SET_EVENT_REQUESTS', eventRequests: data.map(mapEventRequest) })
+  }, [])
+
+  // Registros de Sponsors + integrantes (admin: todos; Sponsor: el suyo).
+  const refreshSponsors = useCallback(async () => {
+    const [{ data: regs, error }, { data: members }] = await Promise.all([
+      fetchAllRows('sponsor_registrations', 'created_at'),
+      fetchAllRows('sponsor_members', 'position'),
+    ])
+    if (error || !regs) return
+    dispatch({ type: 'SET_SPONSOR_REGISTRATIONS', sponsorRegistrations: regs.map(r => mapSponsorRegistration(r, members || [])) })
   }, [])
 
   useEffect(() => {
@@ -570,6 +671,10 @@ export function AppProvider({ children }) {
         // 1. Verificar sesión actual
         const { data: { session } } = await supabase.auth.getSession()
         lastUserIdRef.current = session?.user?.id ?? null
+        // Al cargar la página con una sesión ya iniciada, los canales en vivo se
+        // abren antes de que se restaure la sesión y quedan como anónimos: con
+        // RLS la base no les manda nada. Se les pasa el token del usuario.
+        if (session) await supabase.realtime.setAuth(session.access_token)
         if (session) {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
           if (profile?.role_id === -1 || profile?.is_blocked) {
@@ -584,6 +689,7 @@ export function AppProvider({ children }) {
         //    (login/logout) se vuelven a cargar los datos, porque con otra
         //    sesión RLS devuelve otras filas.
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (session) supabase.realtime.setAuth(session.access_token)
           setTimeout(async () => {
             if (session) {
               const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
@@ -618,8 +724,11 @@ export function AppProvider({ children }) {
   }, [loadAllData])
 
   // Sincronización en vivo: refleja reservas/stands hechos por otros usuarios
-  // (u otras pestañas) sin necesidad de recargar la página.
+  // (u otras pestañas) sin necesidad de recargar la página. Se abre recién cuando
+  // la sesión ya se restauró: si no, los canales entran como anónimos y con RLS
+  // la base no les manda nada.
   useEffect(() => {
+    if (state.loading) return
     const standsChannel = supabase
       .channel('stands-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stands' }, payload => {
@@ -629,7 +738,7 @@ export function AppProvider({ children }) {
           type: 'UPDATE_STAND',
           eventId: row.event_id,
           standId: row.id,
-          updates: { status: row.status, categoryId: row.category_id },
+          updates: { status: row.status, categoryId: row.category_id, isSponsor: !!row.is_sponsor_stand },
         })
       })
       .subscribe()
@@ -672,18 +781,48 @@ export function AppProvider({ children }) {
       })
       .subscribe()
 
+    const requestsChannel = supabase
+      .channel('event-requests-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_requests' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'REMOVE_EVENT_REQUEST', id: payload.old.id })
+          return
+        }
+        const row = payload.new
+        dispatch({ type: 'UPSERT_EVENT_REQUEST', request: mapEventRequest(row) })
+
+        // Solicitud de alguien que el admin todavía no tiene cargado: traemos su perfil.
+        if (row.user_id && !stateRef.current.users.some(u => u.id === row.user_id)) {
+          supabase.from('profiles').select('*').eq('id', row.user_id).maybeSingle().then(({ data }) => {
+            if (data && data.role_id !== -1) dispatch({ type: 'UPSERT_USER', user: mapProfile(data) })
+          })
+        }
+      })
+      .subscribe()
+
+    // Nuevos registros de Sponsors: el admin los ve llegar sin recargar.
+    const sponsorsChannel = supabase
+      .channel('sponsor-registrations-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_registrations' }, () => {
+        // Los integrantes se guardan justo después del registro: esperamos un momento.
+        setTimeout(refreshSponsors, 600)
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(standsChannel)
       supabase.removeChannel(reservationsChannel)
+      supabase.removeChannel(requestsChannel)
+      supabase.removeChannel(sponsorsChannel)
     }
-  }, [])
+  }, [state.loading, refreshSponsors])
 
   async function logout() {
     await supabase.auth.signOut()
     dispatch({ type: 'LOGOUT' })
   }
 
-  return <AppContext.Provider value={{ state, dispatch, logout, refreshUsers }}>{children}</AppContext.Provider>
+  return <AppContext.Provider value={{ state, dispatch, logout, refreshUsers, refreshEventRequests, refreshSponsors, reloadData: loadAllData }}>{children}</AppContext.Provider>
 }
 
 export function useApp() {

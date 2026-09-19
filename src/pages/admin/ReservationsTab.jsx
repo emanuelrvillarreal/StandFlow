@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Users2, MoreVertical, AlertTriangle, Unlock } from 'lucide-react'
 import { STATUS_LABELS, STATUS_STYLES, exportCSV } from './adminHelpers'
+import { formatDateTime } from '../../lib/formatDateTime'
 
 const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 const PAYMENT_TYPE_STYLES = {
@@ -182,6 +183,7 @@ export default function ReservationsTab({
                 <div>
                   <p className="font-bold text-gray-900 text-sm">{ev?.name}</p>
                   <p className="text-xs text-gray-400 mt-0.5">Stand {stand?.number} — {r.standName}</p>
+                  {r.createdAt && <p className="text-[11px] text-violet-500 mt-0.5">Se anotó el {formatDateTime(r.createdAt)}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_STYLES[r.status]}`}>

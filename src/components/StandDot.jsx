@@ -11,7 +11,9 @@ export default function StandDot({ stand, category, editMode, onClick, onDragEnd
   const dragging = useRef(false)
   const startPos = useRef(null)
 
-  const color = category ? category.color : STATUS_COLORS[stand.status]
+  // Los stands reservados para Sponsors libres se ven en dorado: no son para expositores.
+  const sponsorFree = stand.isSponsor && stand.status === 'available'
+  const color = sponsorFree ? '#f59e0b' : category ? category.color : STATUS_COLORS[stand.status]
   const size = 22
 
   function handleMouseDown(e) {

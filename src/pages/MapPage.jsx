@@ -6,6 +6,8 @@ import StandDot from '../components/StandDot'
 import StandModal from '../components/StandModal'
 import ReservationFlow from '../components/ReservationFlow'
 import EditStandModal from '../components/EditStandModal'
+import EventAccessGate from '../components/EventAccessGate'
+import { getEventAccess } from '../lib/eventAccess'
 import { ArrowLeft, Edit3, Plus, Layers, Info } from 'lucide-react'
 
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
@@ -48,11 +50,28 @@ export default function MapPage() {
 
   if (!event) return <div className="min-h-screen bg-ink-950 text-muted p-8 text-center">Evento no encontrado.</div>
 
+  // Evento con confirmación: solo entran los aprobados (y el admin).
+  const access = getEventAccess({ event, user: currentUser, requests: state.eventRequests, reservations: state.reservations })
+  if (access.status !== 'open' && access.status !== 'approved') {
+    return <EventAccessGate event={event} access={access} />
+  }
+
   const isAdmin = currentUser?.role_id === 1
+  // Cupo: cada expositor tiene 1 stand por evento salvo que el admin le dé más.
+  const ACTIVE_STATUSES = ['pending', 'deposit_paid', 'paid', 'reserved']
+  const quota = currentUser?.maxStands || 1
+  const usedStands = currentUser
+    ? state.reservations.filter(r => r.userId === currentUser.id && r.eventId === event.id && ACTIVE_STATUSES.includes(r.status)).length
+    : 0
+  const quotaReached = !!currentUser && !isAdmin && usedStands >= quota
   const stands = event.stands.filter(s => s.sector === sector)
   const filteredStands = filterStatus === 'all' ? stands : stands.filter(s => s.status === filterStatus)
 
-  const mapSrc = sector === 'salon' ? event.mapImage.salon : event.mapImage.galeria
+  // Sponsors es un mapa aparte: solo lo ve el admin (para armarlo). Los expositores
+  // no lo ven ni pueden reservar ahí (la base tampoco les devuelve esos stands).
+  const sectorTabs = ['salon', 'galeria', ...(isAdmin ? ['sponsor'] : [])]
+  const SECTOR_LABELS = { salon: 'Salón', galeria: 'Galería', sponsor: 'Sponsors' }
+  const mapSrc = sector === 'sponsor' ? event.sponsors?.image : event.mapImage?.[sector]
 
   function handleStandClick(stand) {
     if (editMode) {
@@ -77,8 +96,10 @@ export default function MapPage() {
       const newStand = {
         ...updatedStand,
         id: createUuid(),
-        sector,
+        // El sector lo elige el formulario; si no, el del mapa que se está viendo.
+        sector: updatedStand.sector || sector,
       }
+      newStand.isSponsor = newStand.sector === 'sponsor'
 
       const { error } = await supabase.from('stands').insert(toStandRow(newStand, event.id))
       if (error) {
@@ -98,7 +119,7 @@ export default function MapPage() {
         return
       }
 
-      dispatch({ type: 'UPDATE_STAND', eventId: event.id, standId: updatedStand.id, updates: updatedStand })
+      dispatch({ type: 'UPDATE_STAND', eventId: event.id, standId: updatedStand.id, updates: { ...updatedStand, isSponsor: updatedStand.sector === 'sponsor' } })
     }
     setEditingStand(null)
   }
@@ -114,11 +135,13 @@ export default function MapPage() {
     setEditingStand(null)
   }
 
+  // Los stands de Sponsors no cuentan: no se reservan como los de expositores.
+  const exhibitorStands = event.stands.filter(s => s.sector !== 'sponsor')
   const stats = {
-    available: event.stands.filter(s=>s.status==='available').length,
-    pending:   event.stands.filter(s=>s.status==='pending').length,
-    reserved:  event.stands.filter(s=>s.status==='reserved').length,
-    blocked:   event.stands.filter(s=>s.status==='blocked').length,
+    available: exhibitorStands.filter(s=>s.status==='available').length,
+    pending:   exhibitorStands.filter(s=>s.status==='pending').length,
+    reserved:  exhibitorStands.filter(s=>s.status==='reserved').length,
+    blocked:   exhibitorStands.filter(s=>s.status==='blocked').length,
   }
 
   return (
@@ -144,7 +167,7 @@ export default function MapPage() {
                 </button>
                 {editMode && (
                   <button
-                    onClick={() => setEditingStand({})}
+                    onClick={() => setEditingStand({ sector })}
                     className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl bg-accent text-ink-950 hover:bg-accent-soft transition">
                     <Plus size={15}/>
                     <span className="hidden sm:inline">Nuevo</span>
@@ -157,10 +180,10 @@ export default function MapPage() {
 
         {/* Sector tabs */}
         <div className="max-w-5xl mx-auto px-4 pb-3 flex gap-2">
-          {['salon','galeria'].map(s => (
+          {sectorTabs.map(s => (
             <button key={s} onClick={() => setSector(s)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${sector===s?'bg-accent text-ink-950':'bg-ink-700 text-muted hover:bg-ink-600'}`}>
-              <Layers size={13}/> {s === 'salon' ? 'Salón' : 'Galería'}
+              <Layers size={13}/> {SECTOR_LABELS[s]}
             </button>
           ))}
           <button onClick={() => setShowCategories(!showCategories)}
@@ -204,6 +227,12 @@ export default function MapPage() {
           </div>
         )}
 
+        {quotaReached && (
+          <div className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 mb-4 text-sm text-accent-soft">
+            Ya tenés {quota === 1 ? 'tu stand' : `tus ${usedStands} stands`} en este evento. {quota === 1 ? 'Cada expositor puede reservar un solo stand.' : `Podés reservar hasta ${quota}.`} Si necesitás más lugares, pedíselo a la organización.
+          </div>
+        )}
+
         {editMode && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-amber-300 flex items-center gap-2">
             <Edit3 size={15}/>
@@ -212,10 +241,18 @@ export default function MapPage() {
         )}
 
         {/* Map */}
-        <div className="bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden">
+        <div className="anim-rise bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden">
           <div className="map-container-wrapper w-full overflow-auto cursor-grab active:cursor-grabbing">
             <div className="map-container relative min-w-[700px] md:min-w-0 w-full" ref={mapRef}>
-              <img src={mapSrc} alt={`Plano ${sector}`} className="w-full h-auto block select-none" draggable={false}/>
+              {mapSrc ? (
+                <img src={mapSrc} alt={`Plano ${sector}`} className="w-full h-auto block select-none" draggable={false}/>
+              ) : (
+                <div className="w-full min-h-[240px] flex items-center justify-center text-center text-sm text-muted px-6">
+                  {isAdmin
+                    ? 'Este sector todavía no tiene imagen. Subila desde Administrador > Eventos > Editar evento.'
+                    : 'Este sector todavía no tiene mapa.'}
+                </div>
+              )}
               {filteredStands.map(stand => {
                 const cat = categories.find(c => c.id === stand.categoryId)
                 return (
@@ -240,7 +277,7 @@ export default function MapPage() {
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {filteredStands.map(stand => {
             const cat = categories.find(c => c.id === stand.categoryId)
-            const color = cat ? cat.color : STATUS_COLORS[stand.status]
+            const color = stand.isSponsor && stand.status === 'available' ? '#f59e0b' : cat ? cat.color : STATUS_COLORS[stand.status]
             return (
               <button key={stand.id}
                 onClick={() => handleStandClick(stand)}
@@ -267,6 +304,8 @@ export default function MapPage() {
           stand={selectedStand}
           category={categories.find(c => c.id === selectedStand.categoryId)}
           event={event}
+          quotaReached={quotaReached}
+          quota={quota}
           onClose={() => setSelectedStand(null)}
           onReserve={(s) => {
             setSelectedStand(null)
@@ -291,7 +330,7 @@ export default function MapPage() {
       {/* Edit stand modal */}
       {editingStand !== null && (
         <EditStandModal
-          stand={editingStand.id ? editingStand : null}
+          stand={editingStand}
           categories={categories}
           onSave={handleEditSave}
           onDelete={handleDelete}
