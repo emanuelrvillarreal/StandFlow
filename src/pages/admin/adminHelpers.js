@@ -1,4 +1,4 @@
-import { formatDateTime } from '../../lib/formatDateTime'
+import { formatDateTime, formatDaysList } from '../../lib/formatDateTime'
 
 export const STATUS_LABELS = { pending: 'Pendiente', deposit_paid: 'Seña Paga', paid: 'Pagado', cancelled: 'Cancelado', reserved: 'Reservado' }
 
@@ -13,7 +13,7 @@ export const STATUS_STYLES = {
 const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 
 export function exportCSV(reservations, events, users, stands, categories) {
-  const header = ['Evento', 'Stand', 'Nombre Stand', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Categoría', 'Compartido', 'Comparte con', 'Instagram', 'Importe', 'Tipo de pago', 'Estado', 'Fecha y hora de alta']
+  const header = ['Evento', 'Stand', 'Nombre Stand', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Categoría', 'Compartido', 'Comparte con', 'Instagram', 'Importe', 'Tipo de pago', 'Estado', 'Días', 'Fecha y hora de alta']
   const rows = reservations.map(r => {
     const ev = events.find(e => e.id === r.eventId)
     const st = ev?.stands.find(s => s.id === r.standId)
@@ -24,6 +24,7 @@ export function exportCSV(reservations, events, users, stands, categories) {
       user?.name ?? '', user?.lastName ?? '', user?.email ?? '', user?.phone ?? '',
       cat?.name ?? '', r.shared ? 'Sí' : 'No', r.sharedWith ?? '', r.instagram ?? '',
       r.amount, PAYMENT_TYPE_LABELS[r.paymentType || 'full'], STATUS_LABELS[r.status] ?? r.status,
+      formatDaysList(r.days) || 'Todos',
       formatDateTime(r.createdAt),
     ]
   })
@@ -42,6 +43,7 @@ export function toEventRow(event) {
     date: event.date,
     end_date: event.endDate || null,
     requires_approval: !!event.requiresApproval,
+    allow_partial_days: !!event.allowPartialDays,
     location: event.location,
     status: event.status,
     map_image: event.mapImage,

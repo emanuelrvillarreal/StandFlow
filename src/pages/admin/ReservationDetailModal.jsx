@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Instagram, Store, X } from 'lucide-react'
 import { STATUS_LABELS } from './adminHelpers'
-import { formatDateTime, formatBirthDate } from '../../lib/formatDateTime'
+import { formatDateTime, formatBirthDate, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
 const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 const PAYMENT_TYPE_STYLES = {
@@ -14,6 +14,7 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
   if (!detail) return null
   const { reservation, event, stand, user, category } = detail
   const paymentType = reservation.paymentType || 'full'
+  const isPartialDays = Array.isArray(reservation.days) && reservation.days.length < eventDays(event).length
 
   return (
     <>
@@ -35,6 +36,9 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
               <p className="text-xs text-gray-400">Stand</p>
               <p className="font-bold text-gray-900">N° {stand?.number ?? reservation.standId}</p>
               <p className="text-gray-500">{reservation.standName}</p>
+              {isPartialDays && (
+                <p className="text-[11px] text-gray-400 mt-1">Días: {formatDaysList(reservation.days)}</p>
+              )}
             </div>
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-400">Categoría</p>

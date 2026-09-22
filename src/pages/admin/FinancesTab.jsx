@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Trash2, TrendingUp, TrendingDown, Wallet, Zap } from 'lucide-react'
 
-const PAYMENT_TYPE_LABELS = { deposit: 'Seña', full: 'Total' }
+const PAYMENT_TYPE_LABELS = { deposit: 'Seña', full: 'Total', balance: 'Saldo' }
 
 function StatCard({ label, value, icon: Icon, tone }) {
   return (
@@ -23,19 +23,39 @@ export default function FinancesTab({
   const movements = useMemo(() => {
     const auto = reservations
       .filter(r => r.status === 'paid' || r.status === 'deposit_paid')
-      .map(r => {
+      .flatMap(r => {
         const ev = events.find(e => e.id === r.eventId)
         const stand = ev?.stands.find(s => s.id === r.standId)
         const user = users.find(u => u.id === r.userId)
-        return {
+        const desc = `Stand ${stand?.number ?? r.standId} — ${r.standName}${user ? ` (${user.name} ${user.lastName})` : ''}`
+
+        // Si pagó primero la seña y después el resto, se muestran como dos
+        // cobros separados (cada uno con su fecha real), en vez de uno solo
+        // que se actualiza en silencio y pierde la fecha del segundo cobro.
+        if (r.status === 'paid' && r.balancePaidAt && stand?.price) {
+          return [
+            {
+              id: `res-${r.id}-sena`, date: r.paidAt || r.createdAt,
+              description: desc, amount: stand.price / 2,
+              kind: 'income', source: 'auto', paymentType: 'deposit',
+            },
+            {
+              id: `res-${r.id}-saldo`, date: r.balancePaidAt,
+              description: desc, amount: stand.price / 2,
+              kind: 'income', source: 'auto', paymentType: 'balance',
+            },
+          ]
+        }
+
+        return [{
           id: `res-${r.id}`,
           date: r.paidAt || r.createdAt,
-          description: `Stand ${stand?.number ?? r.standId} — ${r.standName}${user ? ` (${user.name} ${user.lastName})` : ''}`,
+          description: desc,
           amount: r.amount,
           kind: 'income',
           source: 'auto',
           paymentType: r.paymentType || 'full',
-        }
+        }]
       })
 
     const manual = (expenses || []).map(e => ({

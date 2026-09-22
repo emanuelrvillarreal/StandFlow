@@ -41,6 +41,23 @@ export function eventDays(event) {
   return out
 }
 
+// Etiqueta corta de un día, "YYYY-MM-DD" -> "21 nov" (sin año, para listas).
+export function formatShortDay(iso) {
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return new Date(y, m - 1, d).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
+
+// Lista de días elegidos para una reserva, en texto corto: "21 y 22 nov",
+// "21, 22 y 23 nov", o null si no aplica (evento de un solo día, o "todos").
+export function formatDaysList(days) {
+  if (!Array.isArray(days) || days.length === 0) return null
+  const sorted = [...days].sort()
+  const labels = sorted.map(formatShortDay)
+  if (labels.length === 1) return labels[0]
+  return `${labels.slice(0, -1).join(', ')} y ${labels[labels.length - 1]}`
+}
+
 export function todayISO() {
   const n = new Date()
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`

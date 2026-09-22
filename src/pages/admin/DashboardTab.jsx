@@ -4,19 +4,21 @@ import { formatEventDate } from '../../lib/formatEventDate'
 export default function DashboardTab({
   events, reservations, categories,
   totalPending, totalDeposit, totalPaid, totalAvailable,
+  totalPendingAmount = 0, totalDepositRemaining = 0,
   totalRevenue, totalExpenses, netRevenue, navigate,
 }) {
+  const money = n => `$${n.toLocaleString('es-AR')}`
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
         {[
-          { label: 'Pendientes', value: totalPending, icon: Clock, color: 'text-yellow-600 bg-yellow-50' },
-          { label: 'Señas Pagas', value: totalDeposit, icon: CheckCircle, color: 'text-orange-600 bg-orange-50' },
+          { label: 'Pendientes', value: totalPending, icon: Clock, color: 'text-yellow-600 bg-yellow-50', sub: totalPendingAmount > 0 ? `Faltan ${money(totalPendingAmount)}` : null },
+          { label: 'Señas Pagas', value: totalDeposit, icon: CheckCircle, color: 'text-orange-600 bg-orange-50', sub: totalDepositRemaining > 0 ? `Faltan ${money(totalDepositRemaining)}` : null },
           { label: 'Pagados', value: totalPaid, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
           { label: 'Disponibles', value: totalAvailable, icon: Map, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Ingresos', value: `$${totalRevenue.toLocaleString('es-AR')}`, icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Egresos', value: `-$${totalExpenses.toLocaleString('es-AR')}`, icon: TrendingUp, color: 'text-red-600 bg-red-50' },
-          { label: 'Saldo Neto', value: `$${netRevenue.toLocaleString('es-AR')}`, icon: TrendingUp, color: 'text-violet-600 bg-violet-50' },
+          { label: 'Ingresos', value: money(totalRevenue), icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
+          { label: 'Egresos', value: `-${money(totalExpenses)}`, icon: TrendingUp, color: 'text-red-600 bg-red-50' },
+          { label: 'Saldo Neto', value: money(netRevenue), icon: TrendingUp, color: 'text-violet-600 bg-violet-50' },
         ].map(stat => (
           <div key={stat.label} className="bg-white rounded-2xl shadow-sm border p-5">
             <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center mb-3`}>
@@ -24,6 +26,7 @@ export default function DashboardTab({
             </div>
             <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
             <p className="text-sm text-gray-500 mt-0.5">{stat.label}</p>
+            {stat.sub && <p className="text-xs font-semibold text-red-500 mt-1">{stat.sub}</p>}
           </div>
         ))}
       </div>

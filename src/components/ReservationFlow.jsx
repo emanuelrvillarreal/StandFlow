@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
-import { X, ArrowLeft, CheckCircle, MessageCircle } from 'lucide-react'
+import { X, ArrowLeft, CheckCircle, MessageCircle, CalendarDays } from 'lucide-react'
+import { eventDays, formatShortDay } from '../lib/formatDateTime'
 
 function toReservationRow(reservation) {
   return {
@@ -18,6 +19,7 @@ function toReservationRow(reservation) {
     amount: reservation.amount,
     payment_type: reservation.paymentType,
     created_at: reservation.createdAt,
+    days: reservation.days,
   }
 }
 
@@ -25,18 +27,31 @@ export default function ReservationFlow({ stand, event, onClose }) {
   const { state, dispatch } = useApp()
   const { currentUser, categories } = state
   const [step, setStep] = useState('form') // form | confirm
-  const [form, setForm] = useState({ standName: currentUser?.businessName || '', shared:'no', sharedWith:'', instagram:'', categoryId:'', paymentType: 'full' })
+  // Si el evento dura más de un día Y el organizador habilitó elegir días,
+  // viene por defecto con todos marcados; el expositor puede destildar los que
+  // no va a estar. Si no lo habilitó, se asume presente todos los días, sin preguntar.
+  const allDays = eventDays(event)
+  const isMultiDay = allDays.length > 1 && !!event.allowPartialDays
+  const [form, setForm] = useState({ standName: currentUser?.businessName || '', shared:'no', sharedWith:'', instagram:'', categoryId:'', paymentType: 'full', days: allDays })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [reservation, setReservation] = useState(null)
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
   const calculatedAmount = form.paymentType === 'deposit' ? stand.price / 2 : stand.price
 
+  function toggleDay(day) {
+    setForm(prev => ({
+      ...prev,
+      days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day].sort(),
+    }))
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.standName.trim()) { setError('El nombre del stand es obligatorio'); return }
     if (!form.categoryId) { setError('Seleccioná una categoría'); return }
     if (form.shared === 'si' && !form.sharedWith.trim()) { setError('Indicá con quién compartís'); return }
+    if (isMultiDay && form.days.length === 0) { setError('Elegí al menos un día para el stand'); return }
     setError('')
     setSubmitting(true)
 
@@ -54,6 +69,8 @@ export default function ReservationFlow({ stand, event, onClose }) {
       amount: calculatedAmount,
       paymentType: form.paymentType,
       createdAt: new Date().toISOString(),
+      // Sin evento de varios días no hace falta guardar nada (null = todos los días).
+      days: isMultiDay ? form.days : null,
     }
 
     // Actualización condicionada: solo tiene efecto si el stand sigue "available".
@@ -84,12 +101,13 @@ export default function ReservationFlow({ stand, event, onClose }) {
       const { error } = await supabase.from('reservations').insert(baseRow)
       reservationError = error || null
     }
-    // Si la columna payment_type (o paid_at) aún no existe en Supabase,
+    // Si la columna payment_type/paid_at/days aún no existe en Supabase,
     // PostgREST responde "Could not find the 'payment_type' column ... in the
     // schema cache". Reintentamos sin esas columnas para no bloquear la reserva.
-    // Solución definitiva: ejecutar supabase-rls-policies.sql en el SQL Editor.
-    if (reservationError && /payment_type|paid_at/i.test(reservationError.message)) {
+    // Solución definitiva: ejecutar supabase-rls-policies.sql / supabase-reservation-days.sql.
+    if (reservationError && /payment_type|paid_at|days/i.test(reservationError.message)) {
       const fallbackRow = { ...baseRow }
+      delete fallbackRow.days
       delete fallbackRow.payment_type
       delete fallbackRow.paid_at
       const { error: retryError } = await supabase.from('reservations').insert(fallbackRow)
@@ -193,6 +211,12 @@ export default function ReservationFlow({ stand, event, onClose }) {
               <span className="text-muted">Evento</span>
               <span className="font-medium text-white text-right max-w-[60%]">{event.name}</span>
             </div>
+            {isMultiDay && (
+              <div className="flex justify-between">
+                <span className="text-muted">Días</span>
+                <span className="font-medium text-white text-right max-w-[60%]">{form.days.map(formatShortDay).join(', ')}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted">Importe</span>
               <span className="font-bold text-accent-soft">${stand.price.toLocaleString('es-AR')}</span>
@@ -261,6 +285,29 @@ export default function ReservationFlow({ stand, event, onClose }) {
               ))}
             </select>
           </div>
+
+          {isMultiDay && (
+            <div>
+              <label className="block text-sm font-medium text-muted mb-2 flex items-center gap-1.5">
+                <CalendarDays size={15} className="text-accent" /> ¿Qué días vas a estar? <span className="text-red-400">*</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {allDays.map(day => {
+                  const checked = form.days.includes(day)
+                  return (
+                    <label key={day}
+                      className={`flex items-center gap-2 px-3.5 py-2 border rounded-xl cursor-pointer transition text-sm font-medium ${checked ? 'border-accent bg-accent/10 text-accent-soft' : 'border-ink-600 text-muted hover:bg-ink-700'}`}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleDay(day)} className="sr-only" />
+                      {formatShortDay(day)}
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted mt-2">
+                Este evento dura varios días. Elegí los días en los que vas a tener el stand montado.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-muted mb-2">¿Stand compartido?</label>

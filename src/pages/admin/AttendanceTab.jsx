@@ -35,9 +35,21 @@ function paymentInfo(r, stand) {
   }
 }
 
-export default function AttendanceTab({ events, reservations, users, sponsorRegistrations, initialEventId }) {
+export default function AttendanceTab({ events, reservations, users, sponsorRegistrations, initialEventId, onStatusChange = () => {} }) {
   const [eventId, setEventId] = useState(initialEventId || events[0]?.id || '')
   const [day, setDay] = useState('')
+  const [payingId, setPayingId] = useState(null)
+
+  // Cobrar acá mismo (por ejemplo, al tomar asistencia el día del evento).
+  // Reusa la misma lógica que "Marcar seña"/"Marcar pagado" de Reservas: ajusta
+  // el importe al estado nuevo y, si ya había seña, guarda aparte la fecha en
+  // que se cobró el resto, para que Finanzas lo muestre como su propio movimiento.
+  async function markPayment(row, newStatus) {
+    if (payingId) return
+    setPayingId(row.reservationId)
+    await onStatusChange(row.reservationId, newStatus)
+    setPayingId(null)
+  }
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all') // all | present | absent | unpaid
   const [attendance, setAttendance] = useState([])
@@ -81,20 +93,25 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
   }, [eventId])
 
   const rows = useMemo(() => {
-    if (!ev) return []
+    if (!ev || !day) return []
     const out = []
 
-    reservations.filter(r => r.eventId === ev.id && r.status !== 'cancelled').forEach(r => {
-      const u = users.find(x => x.id === r.userId)
-      const stand = ev.stands.find(s => s.id === r.standId)
-      out.push({
-        key: `r-${r.id}`, kind: 'exhibitor', reservationId: r.id,
-        name: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim() || '(sin nombre)',
-        sub: [u?.businessName ? `${u?.name || ''} ${u?.lastName || ''}`.trim() : '', u?.phone].filter(Boolean).join(' · '),
-        stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand),
-        shared: !!r.shared, sharedWith: (r.sharedWith || '').trim(), instagram: (r.instagram || '').trim(),
+    // Si la reserva tiene días elegidos, solo cuenta para asistencia los días
+    // en los que el expositor dijo que iba a estar (days = null es "todos").
+    reservations
+      .filter(r => r.eventId === ev.id && r.status !== 'cancelled')
+      .filter(r => !Array.isArray(r.days) || r.days.includes(day))
+      .forEach(r => {
+        const u = users.find(x => x.id === r.userId)
+        const stand = ev.stands.find(s => s.id === r.standId)
+        out.push({
+          key: `r-${r.id}`, kind: 'exhibitor', reservationId: r.id,
+          name: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim() || '(sin nombre)',
+          sub: [u?.businessName ? `${u?.name || ''} ${u?.lastName || ''}`.trim() : '', u?.phone].filter(Boolean).join(' · '),
+          stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand),
+          shared: !!r.shared, sharedWith: (r.sharedWith || '').trim(), instagram: (r.instagram || '').trim(),
+        })
       })
-    })
 
     sponsorRegistrations.filter(g => g.eventId === ev.id).forEach(g => {
       const stand = ev.stands.find(s => s.id === g.standId)
@@ -111,7 +128,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
     })
 
     return out.sort((a, b) => String(a.stand).localeCompare(String(b.stand), 'es', { numeric: true }) || a.name.localeCompare(b.name))
-  }, [ev, reservations, users, sponsorRegistrations])
+  }, [ev, day, reservations, users, sponsorRegistrations])
 
   // Presencia del día elegido, indexada por persona.
   const presentByKey = useMemo(() => {
@@ -314,6 +331,20 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
                           {money(r.pay.paid)} de {money(r.pay.total)}
                           {r.pay.debt > 0 && <span className="text-red-500 font-semibold"> · debe {money(r.pay.debt)}</span>}
                         </p>
+                      )}
+                      {r.kind === 'exhibitor' && r.pay.key !== 'paid' && (
+                        <div className="flex gap-1 mt-1.5">
+                          {(r.pay.key === 'pending' || r.pay.key === 'reserved') && (
+                            <button onClick={() => markPayment(r, 'deposit_paid')} disabled={payingId === r.reservationId}
+                              className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition">
+                              Cobrar seña
+                            </button>
+                          )}
+                          <button onClick={() => markPayment(r, 'paid')} disabled={payingId === r.reservationId}
+                            className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition">
+                            {r.pay.key === 'deposit' ? 'Cobrar el resto' : 'Cobrar todo'}
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

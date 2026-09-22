@@ -238,13 +238,19 @@ function reducer(state, action) {
         ),
       }
     case 'UPDATE_RESERVATION_STATUS': {
-      const { id, status, paidAt } = action
+      const { id, status, paidAt, amount, paymentType, balancePaidAt } = action
       const res = state.reservations.find(r => r.id === id)
       if (!res) return state
       let newStandStatus = (status === 'paid' || status === 'deposit_paid') ? 'reserved' : status === 'cancelled' ? 'available' : 'pending'
       return {
         ...state,
-        reservations: state.reservations.map(r => r.id === id ? { ...r, status, paidAt: paidAt !== undefined ? paidAt : r.paidAt } : r),
+        reservations: state.reservations.map(r => r.id === id ? {
+          ...r, status,
+          paidAt: paidAt !== undefined ? paidAt : r.paidAt,
+          amount: amount !== undefined ? amount : r.amount,
+          paymentType: paymentType !== undefined ? paymentType : r.paymentType,
+          balancePaidAt: balancePaidAt !== undefined ? balancePaidAt : r.balancePaidAt,
+        } : r),
         events: state.events.map(ev =>
           ev.id === res.eventId
             ? {
@@ -577,7 +583,11 @@ export function AppProvider({ children }) {
       // públicos, que sí tienen que verse sin login.
       if (catError || evError || stError || (isLoggedIn && (resError || profilesError))) {
         console.error("Error cargando datos de Supabase:", { catError, evError, stError, resError, profilesError })
-        return
+        // OJO: no retornamos acá. SET_DATA de abajo es lo único que apaga
+        // `loading`; si retornamos, la app queda en la pantalla de carga para
+        // siempre y tras el login se ve una pantalla en blanco/negra (típico
+        // en celular con red inestable o si RLS niega alguna consulta).
+        // Se sigue con listas vacías como fallback.
       }
 
       if (expError) {
@@ -608,6 +618,7 @@ export function AppProvider({ children }) {
         categoryId: r.category_id,
         paymentType: r.payment_type || 'full',
         paidAt: r.paid_at,
+        balancePaidAt: r.balance_paid_at,
         createdAt: r.created_at
       }))
 
@@ -620,6 +631,7 @@ export function AppProvider({ children }) {
         posterImage: ev.poster_image,
         endDate: ev.end_date,
         requiresApproval: !!ev.requires_approval,
+        allowPartialDays: !!ev.allow_partial_days,
         paymentInstructions: ev.payment_instructions,
         sponsors: (() => {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
@@ -642,6 +654,9 @@ export function AppProvider({ children }) {
       })
     } catch (err) {
       console.error("Error crítico en fetchData:", err)
+      // Desbloquear la UI aunque todo falle: mejor ver la app (vacía o con
+      // datos parciales) que quedarse colgado en la pantalla de carga.
+      dispatch({ type: 'SET_DATA', events: [], categories: [], reservations: [], expenses: [] })
     }
   }, [])
 
@@ -775,7 +790,9 @@ export function AppProvider({ children }) {
             status: row.status,
             amount: row.amount,
             paymentType: row.payment_type || 'full',
+            days: row.days || null,
             paidAt: row.paid_at,
+            balancePaidAt: row.balance_paid_at,
             createdAt: row.created_at,
           },
         })

@@ -63,6 +63,31 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
               </div>
             </div>
 
+            {eventForm.endDate && (
+              <div className={`rounded-2xl border p-4 transition ${eventForm.allowPartialDays ? 'bg-violet-50 border-violet-200' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">Elegir días de asistencia</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      {eventForm.allowPartialDays
+                        ? 'Cada expositor elige en qué días de estos va a estar con su stand.'
+                        : 'Todos se asumen presentes los días completos del evento; no se les pregunta nada.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label="Permitir elegir días de asistencia"
+                    aria-checked={!!eventForm.allowPartialDays}
+                    onClick={() => setEventForm({ ...eventForm, allowPartialDays: !eventForm.allowPartialDays })}
+                    className={`relative flex-shrink-0 w-12 h-7 rounded-full transition ${eventForm.allowPartialDays ? 'bg-violet-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${eventForm.allowPartialDays ? 'translate-x-5' : ''}`} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {isEditing && (
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Estado</label>

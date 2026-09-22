@@ -28,7 +28,7 @@ import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
 
 const EMPTY_EVENT_FORM = {
-  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, whatsapp: '', paymentInstructions: '',
+  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', paymentInstructions: '',
   posterImage: null, mapImageSalon: null, mapImageGaleria: null, mapImageSponsor: null, copyFrom: 'none',
   sponsorsEnabled: false, sponsorCode: '',
 }
@@ -49,6 +49,7 @@ export default function AdminPage() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [reservationPage, setReservationPage] = useState(1)
+  const [reservationSort, setReservationSort] = useState('newest') // newest | oldest
   const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6' })
   const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', type: 'expense' })
   const [editingCat, setEditingCat] = useState(null)
@@ -125,18 +126,35 @@ export default function AdminPage() {
   const totalPending = reservations.filter(r => r.status === 'pending').length
   const totalDeposit = reservations.filter(r => r.status === 'deposit_paid').length
   const totalPaid = reservations.filter(r => r.status === 'paid').length
+  // Plata que todavía falta cobrar: el precio completo del stand para las
+  // pendientes (no pagaron nada), y lo que resta de la seña para las que
+  // pagaron la mitad.
+  const totalPendingAmount = reservations
+    .filter(r => r.status === 'pending')
+    .reduce((s, r) => s + (allStands.find(st => st.id === r.standId)?.price ?? r.amount ?? 0), 0)
+  const totalDepositRemaining = reservations
+    .filter(r => r.status === 'deposit_paid')
+    .reduce((s, r) => {
+      const total = allStands.find(st => st.id === r.standId)?.price ?? r.amount * 2
+      return s + Math.max(0, total - r.amount)
+    }, 0)
   const totalRevenue = reservations.filter(r => r.status === 'paid' || r.status === 'deposit_paid').reduce((s, r) => s + r.amount, 0)
   const totalManualIncome = (expenses || []).filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0)
   const totalExpenses = (expenses || []).filter(e => e.type !== 'income').reduce((s, e) => s + Number(e.amount), 0)
   const netRevenue = totalRevenue + totalManualIncome - totalExpenses
 
-  const filteredRes = reservations.filter(r => {
-    if (filterEventId !== 'all' && r.eventId !== filterEventId) return false
-    if (filterStatus !== 'all' && r.status !== filterStatus) return false
-    if (filterCategory !== 'all' && r.categoryId !== filterCategory) return false
-    return true
-  })
-  const reservationsPerPage = 20
+  const filteredRes = reservations
+    .filter(r => {
+      if (filterEventId !== 'all' && r.eventId !== filterEventId) return false
+      if (filterStatus !== 'all' && r.status !== filterStatus) return false
+      if (filterCategory !== 'all' && r.categoryId !== filterCategory) return false
+      return true
+    })
+    .sort((a, b) => {
+      const diff = new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      return reservationSort === 'newest' ? -diff : diff
+    })
+  const reservationsPerPage = 10
   const totalReservationPages = Math.max(1, Math.ceil(filteredRes.length / reservationsPerPage))
   const reservationPageSafe = Math.min(reservationPage, totalReservationPages)
   const paginatedRes = filteredRes.slice((reservationPageSafe - 1) * reservationsPerPage, reservationPageSafe * reservationsPerPage)
@@ -252,9 +270,29 @@ export default function AdminPage() {
     // Se registra cuándo entró la plata para que Finanzas lo pueda mostrar
     // automáticamente; si se revierte el estado, se limpia esa fecha.
     const paidAt = isNowPaid ? (reservation.paidAt || new Date().toISOString()) : null
+
+    // El importe y el tipo de pago se acomodan al estado que se está marcando:
+    // "Pagado" es el precio completo, "Seña Paga" es la mitad. Si no se hace
+    // esto, marcar "Pagado" sobre una reserva que había elegido seña deja el
+    // monto viejo (la mitad) archivado, y Finanzas cuenta de menos la plata
+    // real que entró.
+    const stand = getStand(reservation.eventId, reservation.standId)
+    const updates = { status: newStatus, paid_at: paidAt }
+    // Si venía de "Seña Paga" y ahora se cobró el resto, esa fecha se guarda
+    // aparte (no pisa la fecha de la seña): así Finanzas puede mostrar los dos
+    // cobros como movimientos separados, cada uno en su día real.
+    const wasDepositOnly = reservation.status === 'deposit_paid'
+    updates.balance_paid_at = (newStatus === 'paid' && wasDepositOnly)
+      ? (reservation.balancePaidAt || new Date().toISOString())
+      : null
+    if (stand?.price) {
+      if (newStatus === 'paid') { updates.amount = stand.price; updates.payment_type = 'full' }
+      else if (newStatus === 'deposit_paid') { updates.amount = stand.price / 2; updates.payment_type = 'deposit' }
+    }
+
     const { error: reservationError } = await supabase
       .from('reservations')
-      .update({ status: newStatus, paid_at: paidAt })
+      .update(updates)
       .eq('id', resId)
 
     if (reservationError) {
@@ -272,11 +310,19 @@ export default function AdminPage() {
       return
     }
 
-    dispatch({ type: 'UPDATE_RESERVATION_STATUS', id: resId, status: newStatus, paidAt })
+    dispatch({
+      type: 'UPDATE_RESERVATION_STATUS', id: resId, status: newStatus, paidAt,
+      amount: updates.amount, paymentType: updates.payment_type, balancePaidAt: updates.balance_paid_at,
+    })
     if (reservationDetail?.reservation.id === resId) {
       setReservationDetail({
         ...reservationDetail,
-        reservation: { ...reservationDetail.reservation, status: newStatus },
+        reservation: {
+          ...reservationDetail.reservation, status: newStatus,
+          amount: updates.amount ?? reservationDetail.reservation.amount,
+          paymentType: updates.payment_type ?? reservationDetail.reservation.paymentType,
+          balancePaidAt: updates.balance_paid_at,
+        },
       })
     }
   }
@@ -411,6 +457,7 @@ export default function AdminPage() {
       date: event.date || '',
       endDate: event.endDate || '',
       requiresApproval: !!event.requiresApproval,
+      allowPartialDays: !!event.allowPartialDays,
       location: event.location || '',
       status: event.status || 'upcoming',
       whatsapp: event.whatsapp || '',
@@ -461,6 +508,7 @@ export default function AdminPage() {
       date: eventForm.date,
       endDate: eventForm.endDate || null,
       requiresApproval: !!eventForm.requiresApproval,
+      allowPartialDays: !!eventForm.allowPartialDays,
       location: eventForm.location,
       status: 'upcoming',
       posterImage: eventForm.posterImage || sourceEvent?.posterImage || null,
@@ -522,6 +570,7 @@ export default function AdminPage() {
       date: eventForm.date,
       endDate: eventForm.endDate || null,
       requiresApproval: !!eventForm.requiresApproval,
+      allowPartialDays: !!eventForm.allowPartialDays,
       location: eventForm.location,
       status: eventForm.status,
       whatsapp: eventForm.whatsapp,
@@ -1046,6 +1095,7 @@ export default function AdminPage() {
           <DashboardTab
             events={events} reservations={reservations} categories={categories}
             totalPending={totalPending} totalDeposit={totalDeposit} totalPaid={totalPaid}
+            totalPendingAmount={totalPendingAmount} totalDepositRemaining={totalDepositRemaining}
             totalAvailable={totalAvailable} totalRevenue={totalRevenue} totalExpenses={totalExpenses}
             netRevenue={netRevenue} navigate={navigate}
           />
@@ -1073,6 +1123,7 @@ export default function AdminPage() {
             events={events} reservations={reservations} users={users}
             sponsorRegistrations={state.sponsorRegistrations || []}
             initialEventId={attendanceEventId}
+            onStatusChange={handleStatusChange}
           />
         )}
 
@@ -1092,7 +1143,9 @@ export default function AdminPage() {
             filterEventId={filterEventId} setFilterEventId={setFilterEventId}
             filterStatus={filterStatus} setFilterStatus={setFilterStatus}
             filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+            reservationSort={reservationSort} setReservationSort={setReservationSort}
             filteredRes={filteredRes} paginatedRes={paginatedRes}
+            reservationsPerPage={reservationsPerPage}
             reservationPageSafe={reservationPageSafe} totalReservationPages={totalReservationPages}
             setReservationPage={setReservationPage}
             getEvent={getEvent} getStand={getStand} getUser={getUser}
