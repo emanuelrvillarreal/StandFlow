@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { formatBirthDate } from '../../lib/formatDateTime'
-import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown } from 'lucide-react'
+import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw } from 'lucide-react'
 
-export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, isSysadmin = false, deletedUsers = [], onPurgeUser }) {
+export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, isSysadmin = false, deletedUsers = [], onPurgeUser, onReactivateUser = () => {} }) {
   const [search, setSearch] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -131,10 +131,16 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
                     <p className="text-sm font-semibold text-gray-800 truncate">{u.name || '(sin nombre)'} {u.lastName}</p>
                     <p className="text-xs text-gray-400 truncate">{u.email}</p>
                   </div>
-                  <button onClick={() => onPurgeUser(u)}
-                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition">
-                    <Trash2 size={14} /> Eliminar definitivamente
-                  </button>
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <button onClick={() => onReactivateUser(u)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl transition">
+                      <RotateCcw size={14} /> Reactivar
+                    </button>
+                    <button onClick={() => onPurgeUser(u)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition">
+                      <Trash2 size={14} /> Eliminar definitivamente
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

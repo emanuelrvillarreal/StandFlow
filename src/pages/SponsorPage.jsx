@@ -4,6 +4,7 @@ import { Zap, ArrowLeft, KeyRound, CheckCircle, Plus, Trash2, Sparkles, Eye, Eye
 import { supabase } from '../lib/supabase'
 import { useApp } from '../store'
 import { formatEventDate } from '../lib/formatEventDate'
+import BrandFooter from '../components/BrandFooter'
 
 const inputCls = 'w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition'
 const emptyMember = () => ({ firstName: '', lastName: '', dni: '', phone: '', email: '', birthDate: '' })
@@ -377,6 +378,7 @@ export default function SponsorPage() {
           )}
         </div>
       </div>
+      <BrandFooter className="absolute bottom-0 inset-x-0" />
     </div>
   )
 }

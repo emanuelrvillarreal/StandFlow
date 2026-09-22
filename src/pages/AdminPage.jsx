@@ -22,6 +22,7 @@ import AttendanceTab from './admin/AttendanceTab'
 import SettingsTab from './admin/SettingsTab'
 import ReservationDetailModal from './admin/ReservationDetailModal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import NoticeDialog from '../components/NoticeDialog'
 import UserModal from './admin/UserModal'
 import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
@@ -74,6 +75,12 @@ export default function AdminPage() {
   const [savingUser, setSavingUser] = useState(false)
   const [reservationDetail, setReservationDetail] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [notice, setNotice] = useState(null)
+
+  // Popup de aviso ("listo, ya está"), en vez del alert() nativo del navegador.
+  function showNotice({ title, itemLabel, message, tone }) {
+    setNotice({ title, itemLabel, message, tone })
+  }
 
   function requestConfirm({ title, itemLabel, message, confirmLabel, tone, onConfirm }) {
     setConfirmDialog({ title, itemLabel, message, confirmLabel, tone, onConfirm })
@@ -157,7 +164,7 @@ export default function AdminPage() {
       .update({ status: 'available', category_id: null })
       .eq('id', stand.id)
     if (error) {
-      alert(`No se pudo liberar el stand ${stand.number}: ${error.message}`)
+      showNotice({ title: 'No se pudo liberar', message: `No se pudo liberar el stand ${stand.number}: ${error.message}`, tone: 'danger' })
       return
     }
     dispatch({ type: 'UPDATE_STAND', eventId: stand.eventId, standId: stand.id, updates: { status: 'available', categoryId: null } })
@@ -188,7 +195,7 @@ export default function AdminPage() {
           .update({ status: 'available', category_id: null })
           .in('id', list.map(s => s.id))
         if (error) {
-          alert(`No se pudieron liberar los stands: ${error.message}`)
+          showNotice({ title: 'No se pudo liberar', message: `No se pudieron liberar los stands: ${error.message}`, tone: 'danger' })
           return
         }
         list.forEach(s => {
@@ -201,7 +208,7 @@ export default function AdminPage() {
   function notifyReservationPaid(reservation, event, stand, user) {
     const phone = normalizePhone(user?.phone)
     if (!phone) {
-      alert('El expositor no tiene un número de celular cargado.')
+      showNotice({ title: 'Falta el celular', message: 'El expositor no tiene un número de celular cargado.', tone: 'danger' })
       return
     }
 
@@ -251,7 +258,7 @@ export default function AdminPage() {
       .eq('id', resId)
 
     if (reservationError) {
-      alert(`No se pudo actualizar la reserva: ${reservationError.message}`)
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar la reserva: ${reservationError.message}`, tone: 'danger' })
       return
     }
 
@@ -261,7 +268,7 @@ export default function AdminPage() {
       .eq('id', reservation.standId)
 
     if (standError) {
-      alert(`La reserva se actualizó, pero no se pudo actualizar el stand: ${standError.message}`)
+      showNotice({ title: 'Reserva actualizada con un problema', message: `La reserva se actualizó, pero no se pudo actualizar el stand: ${standError.message}`, tone: 'danger' })
       return
     }
 
@@ -276,7 +283,7 @@ export default function AdminPage() {
 
   function handleDeleteReservation(reservation) {
     if (reservation.status !== 'cancelled') {
-      alert('Primero tenés que cancelar la reserva para poder eliminarla.')
+      showNotice({ title: 'No se puede eliminar', message: 'Primero tenés que cancelar la reserva para poder eliminarla.', tone: 'danger' })
       return
     }
 
@@ -292,7 +299,7 @@ export default function AdminPage() {
           .eq('id', reservation.id)
 
         if (reservationError) {
-          alert(`No se pudo eliminar la reserva: ${reservationError.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar la reserva: ${reservationError.message}`, tone: 'danger' })
           return
         }
 
@@ -302,7 +309,7 @@ export default function AdminPage() {
           .eq('id', reservation.standId)
 
         if (standError) {
-          alert(`La reserva se eliminó, pero no se pudo liberar el stand: ${standError.message}`)
+          showNotice({ title: 'Reserva eliminada con un problema', message: `La reserva se eliminó, pero no se pudo liberar el stand: ${standError.message}`, tone: 'danger' })
           return
         }
 
@@ -319,7 +326,7 @@ export default function AdminPage() {
     const newCat = { id: createUuid(), ...catForm }
     const { error } = await supabase.from('categories').insert(newCat)
     if (error) {
-      alert(`No se pudo crear la categoría: ${error.message}`)
+      showNotice({ title: 'No se pudo crear', message: `No se pudo crear la categoría: ${error.message}`, tone: 'danger' })
       return
     }
     dispatch({ type: 'ADD_CATEGORY', category: newCat })
@@ -332,7 +339,7 @@ export default function AdminPage() {
       .update({ name: editingCat.name, color: editingCat.color })
       .eq('id', editingCat.id)
     if (error) {
-      alert(`No se pudo actualizar la categoría: ${error.message}`)
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar la categoría: ${error.message}`, tone: 'danger' })
       return
     }
     dispatch({ type: 'UPDATE_CATEGORY', category: editingCat })
@@ -348,7 +355,7 @@ export default function AdminPage() {
       onConfirm: async () => {
         const { error } = await supabase.from('categories').delete().eq('id', cat.id)
         if (error) {
-          alert(`No se pudo eliminar la categoría: ${error.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar la categoría: ${error.message}`, tone: 'danger' })
           return
         }
         dispatch({ type: 'DELETE_CATEGORY', id: cat.id })
@@ -367,7 +374,7 @@ export default function AdminPage() {
     }
     const { error } = await supabase.from('expenses').insert(newExpense)
     if (error) {
-      alert(`No se pudo registrar el movimiento: ${error.message}`)
+      showNotice({ title: 'No se pudo registrar', message: `No se pudo registrar el movimiento: ${error.message}`, tone: 'danger' })
       return
     }
     dispatch({ type: 'ADD_EXPENSE', expense: newExpense })
@@ -383,7 +390,7 @@ export default function AdminPage() {
       onConfirm: async () => {
         const { error } = await supabase.from('expenses').delete().eq('id', expense.id)
         if (error) {
-          alert(`No se pudo eliminar: ${error.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar: ${error.message}`, tone: 'danger' })
           return
         }
         dispatch({ type: 'DELETE_EXPENSE', id: expense.id })
@@ -479,7 +486,7 @@ export default function AdminPage() {
 
     const { error: eventError } = await supabase.from('events').insert(toEventRow(newEvent))
     if (eventError) {
-      alert(`No se pudo guardar el evento en la base de datos: ${eventError.message}`)
+      showNotice({ title: 'No se pudo guardar', message: `No se pudo guardar el evento en la base de datos: ${eventError.message}`, tone: 'danger' })
       return
     }
 
@@ -489,14 +496,14 @@ export default function AdminPage() {
         .insert(newEvent.stands.map(stand => toStandRow(stand, newEvent.id)))
 
       if (standsError) {
-        alert(`El evento se creó, pero no se pudieron guardar los stands: ${standsError.message}`)
+        showNotice({ title: 'Evento creado con un problema', message: `El evento se creó, pero no se pudieron guardar los stands: ${standsError.message}`, tone: 'danger' })
       }
     }
 
     if (eventForm.sponsorsEnabled) {
       const sponsorError = await saveSponsorConfig(newEvent.id, eventForm)
       if (sponsorError) {
-        alert(`El evento se creó, pero: ${sponsorError}`)
+        showNotice({ title: 'Evento creado con un problema', message: `El evento se creó, pero: ${sponsorError}`, tone: 'danger' })
       } else {
         newEvent.sponsors = { enabled: true, code: (eventForm.sponsorCode || '').trim().toUpperCase(), image: eventForm.mapImageSponsor || null }
       }
@@ -528,7 +535,7 @@ export default function AdminPage() {
 
     const { error } = await supabase.from('events').update(toEventRow(updatedEvent)).eq('id', editingEvent.id)
     if (error) {
-      alert(`No se pudo actualizar el evento: ${error.message}`)
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar el evento: ${error.message}`, tone: 'danger' })
       return
     }
 
@@ -539,7 +546,7 @@ export default function AdminPage() {
     if (sponsorsChanged) {
       const sponsorError = await saveSponsorConfig(editingEvent.id, eventForm)
       if (sponsorError) {
-        alert(sponsorError)
+        showNotice({ title: 'No se pudo guardar', message: sponsorError, tone: 'danger' })
         return
       }
       updatedEvent.sponsors = {
@@ -587,7 +594,7 @@ export default function AdminPage() {
 
   function requestDeleteMember(registration, member) {
     if (registration.members.length <= 1) {
-      alert('Tiene que quedar al menos un integrante. Si querés dar de baja al Sponsor, usá "Liberar stand".')
+      showNotice({ title: 'No se puede quitar', message: 'Tiene que quedar al menos un integrante. Si querés dar de baja al Sponsor, usá "Liberar stand".', tone: 'danger' })
       return
     }
     requestConfirm({
@@ -598,7 +605,7 @@ export default function AdminPage() {
       tone: 'danger',
       onConfirm: async () => {
         const { error } = await supabase.from('sponsor_members').delete().eq('id', member.id)
-        if (error) { alert(`No se pudo quitar al integrante: ${error.message}`); return }
+        if (error) { showNotice({ title: 'No se pudo quitar', message: `No se pudo quitar al integrante: ${error.message}`, tone: 'danger' }); return }
         await refreshSponsors()
       },
     })
@@ -616,7 +623,7 @@ export default function AdminPage() {
       onConfirm: async () => {
         const { error } = await supabase.from('sponsor_registrations').delete().eq('id', reg.id)
         if (error) {
-          alert(`No se pudo eliminar el registro: ${error.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar el registro: ${error.message}`, tone: 'danger' })
           return
         }
         await refreshSponsors()
@@ -628,7 +635,7 @@ export default function AdminPage() {
   function handleSaveEvent() {
     if (!eventForm.name || !eventForm.date) return
     const spError = sponsorFormError()
-    if (spError) { alert(spError); return }
+    if (spError) { showNotice({ title: 'Revisá el formulario', message: spError, tone: 'danger' }); return }
     return editingEvent ? handleUpdateEvent() : handleCreateEvent()
   }
 
@@ -641,19 +648,19 @@ export default function AdminPage() {
       onConfirm: async () => {
         const { error: reservationsError } = await supabase.from('reservations').delete().eq('event_id', event.id)
         if (reservationsError) {
-          alert(`No se pudieron eliminar las reservas del evento: ${reservationsError.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudieron eliminar las reservas del evento: ${reservationsError.message}`, tone: 'danger' })
           return
         }
 
         const { error: standsError } = await supabase.from('stands').delete().eq('event_id', event.id)
         if (standsError) {
-          alert(`No se pudieron eliminar los stands del evento: ${standsError.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudieron eliminar los stands del evento: ${standsError.message}`, tone: 'danger' })
           return
         }
 
         const { error: eventError } = await supabase.from('events').delete().eq('id', event.id)
         if (eventError) {
-          alert(`No se pudo eliminar el evento de la base de datos: ${eventError.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar el evento de la base de datos: ${eventError.message}`, tone: 'danger' })
           return
         }
 
@@ -759,7 +766,7 @@ export default function AdminPage() {
 
   function handleResetUserPassword(user) {
     if (!user.email) {
-      alert('Este usuario no tiene un email cargado.')
+      showNotice({ title: 'Falta el email', message: 'Este usuario no tiene un email cargado.', tone: 'danger' })
       return
     }
 
@@ -775,18 +782,23 @@ export default function AdminPage() {
         })
 
         if (error) {
-          alert(`No se pudo enviar el email de recuperación: ${error.message}`)
+          showNotice({ title: 'No se pudo enviar', message: `No se pudo enviar el email de recuperación: ${error.message}`, tone: 'danger' })
           return
         }
 
-        alert(`Le enviamos un email a ${user.email} para que pueda elegir una nueva contraseña.`)
+        showNotice({
+          title: 'Email enviado',
+          itemLabel: user.email,
+          message: 'Le enviamos un email para que pueda elegir una nueva contraseña.',
+          tone: 'success',
+        })
       },
     })
   }
 
   function handleDeleteUser(user) {
     if (user.id === currentUser?.id) {
-      alert('No podés eliminar tu propio usuario desde este panel.')
+      showNotice({ title: 'No se puede', message: 'No podés eliminar tu propio usuario desde este panel.', tone: 'danger' })
       return
     }
 
@@ -801,7 +813,7 @@ export default function AdminPage() {
           .update({ role_id: -1, role: 'deleted' })
           .eq('id', user.id)
         if (error) {
-          alert(`No se pudo eliminar el usuario: ${error.message}`)
+          showNotice({ title: 'No se pudo dar de baja', message: `No se pudo eliminar el usuario: ${error.message}`, tone: 'danger' })
           return
         }
 
@@ -821,7 +833,7 @@ export default function AdminPage() {
       onConfirm: async () => {
         const { error } = await supabase.rpc('purge_user_account', { p_user_id: user.id })
         if (error) {
-          alert(`No se pudo eliminar la cuenta: ${error.message}`)
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar la cuenta: ${error.message}`, tone: 'danger' })
           return
         }
         dispatch({ type: 'REMOVE_DELETED_USER', id: user.id })
@@ -831,9 +843,33 @@ export default function AdminPage() {
     })
   }
 
+  // Vuelve a habilitar una cuenta dada de baja. No queda registrado qué tipo de
+  // usuario era antes de la baja, así que vuelve como Expositor; si era admin,
+  // se le cambia el tipo desde "Modificar" después de reactivarla.
+  function handleReactivateUser(user) {
+    requestConfirm({
+      title: '¿Reactivar esta cuenta?',
+      itemLabel: `${user.name} ${user.lastName} · ${user.email}`,
+      message: 'Vuelve a poder ingresar, como Expositor. Si era administrador, después cambiale el tipo de usuario desde "Modificar".',
+      confirmLabel: 'Sí, reactivar',
+      tone: 'neutral',
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ role_id: 2, role: 'user' })
+          .eq('id', user.id)
+        if (error) {
+          showNotice({ title: 'No se pudo reactivar', message: `No se pudo reactivar la cuenta: ${error.message}`, tone: 'danger' })
+          return
+        }
+        dispatch({ type: 'REACTIVATE_USER', id: user.id })
+      },
+    })
+  }
+
   function openBlockUserModal(user) {
     if (user.id === currentUser?.id) {
-      alert('No podés bloquear tu propio usuario.')
+      showNotice({ title: 'No se puede', message: 'No podés bloquear tu propio usuario.', tone: 'danger' })
       return
     }
     setBlockUserTarget(user)
@@ -849,7 +885,7 @@ export default function AdminPage() {
       .eq('id', user.id)
 
     if (error) {
-      alert(`No se pudo bloquear al usuario: ${error.message}`)
+      showNotice({ title: 'No se pudo bloquear', message: `No se pudo bloquear al usuario: ${error.message}`, tone: 'danger' })
       return
     }
 
@@ -872,7 +908,7 @@ export default function AdminPage() {
           .eq('id', user.id)
 
         if (error) {
-          alert(`No se pudo desbloquear al usuario: ${error.message}`)
+          showNotice({ title: 'No se pudo desbloquear', message: `No se pudo desbloquear al usuario: ${error.message}`, tone: 'danger' })
           return
         }
 
@@ -891,12 +927,12 @@ export default function AdminPage() {
       }, { onConflict: 'id' })
 
     if (error) {
-      alert(`No se pudo guardar la configuración en la base de datos: ${error.message}`)
+      showNotice({ title: 'No se pudo guardar', message: `No se pudo guardar la configuración en la base de datos: ${error.message}`, tone: 'danger' })
       return
     }
 
     dispatch({ type: 'UPDATE_GLOBAL_SETTINGS', settings: settingsForm })
-    alert('Configuración guardada correctamente')
+    showNotice({ title: 'Guardado', message: 'Configuración guardada correctamente.', tone: 'success' })
   }
 
   async function decideRequest(request, status) {
@@ -907,7 +943,7 @@ export default function AdminPage() {
       .eq('id', request.id)
 
     if (error) {
-      alert(`No se pudo actualizar la solicitud: ${error.message}`)
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar la solicitud: ${error.message}`, tone: 'danger' })
       return
     }
 
@@ -1098,6 +1134,7 @@ export default function AdminPage() {
             isSysadmin={!!currentUser?.isSysadmin}
             deletedUsers={state.deletedUsers || []}
             onPurgeUser={handlePurgeUser}
+            onReactivateUser={handleReactivateUser}
             onResetPassword={handleResetUserPassword}
             onBlockUser={openBlockUserModal}
             onUnblockUser={handleUnblockUser}
@@ -1170,6 +1207,15 @@ export default function AdminPage() {
         tone={confirmDialog?.tone}
         onConfirm={runConfirmedAction}
         onCancel={closeConfirmDialog}
+      />
+
+      <NoticeDialog
+        open={!!notice}
+        title={notice?.title}
+        itemLabel={notice?.itemLabel}
+        message={notice?.message}
+        tone={notice?.tone}
+        onClose={() => setNotice(null)}
       />
     </div>
   )

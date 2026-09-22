@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, Search, Download, Check, Sparkles, Store, AlertCircle, Users2 } from 'lucide-react'
+import NoticeDialog from '../../components/NoticeDialog'
 import { supabase } from '../../lib/supabase'
 import { eventDays, todayISO, formatDateTime, formatTime } from '../../lib/formatDateTime'
 
@@ -42,6 +43,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
   const [attendance, setAttendance] = useState([])
   const [loadError, setLoadError] = useState('')
   const [busyKey, setBusyKey] = useState(null)
+  const [notice, setNotice] = useState(null)
 
   useEffect(() => { if (initialEventId) setEventId(initialEventId) }, [initialEventId])
   useEffect(() => { if (!eventId && events[0]) setEventId(events[0].id) }, [events, eventId])
@@ -146,7 +148,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
     const current = presentByKey.get(row.key)
     if (current) {
       const { error } = await supabase.from('event_attendance').delete().eq('id', current.id)
-      if (error) alert(`No se pudo desmarcar: ${error.message}`)
+      if (error) setNotice({ title: 'No se pudo desmarcar', message: `No se pudo desmarcar: ${error.message}`, tone: 'danger' })
       else setAttendance(list => list.filter(a => a.id !== current.id))
     } else {
       const { data, error } = await supabase.from('event_attendance').insert({
@@ -154,7 +156,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
         reservation_id: row.reservationId || null,
         sponsor_member_id: row.memberId || null,
       }).select().single()
-      if (error) alert(`No se pudo marcar la asistencia: ${error.message}`)
+      if (error) setNotice({ title: 'No se pudo marcar', message: `No se pudo marcar la asistencia: ${error.message}`, tone: 'danger' })
       else setAttendance(list => list.some(a => a.id === data.id) ? list : [...list, data])
     }
     setBusyKey(null)
@@ -326,6 +328,14 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
           </p>
         )}
       </div>
+
+      <NoticeDialog
+        open={!!notice}
+        title={notice?.title}
+        message={notice?.message}
+        tone={notice?.tone}
+        onClose={() => setNotice(null)}
+      />
     </div>
   )
 }

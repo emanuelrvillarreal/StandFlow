@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { Eye, EyeOff, Zap } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import BrandFooter from '../components/BrandFooter'
 
 export default function LoginPage() {
   const { state, dispatch } = useApp()
@@ -148,6 +149,7 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+      <BrandFooter className="absolute bottom-0 inset-x-0" />
     </div>
   )
 }

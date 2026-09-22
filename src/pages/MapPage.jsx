@@ -9,6 +9,7 @@ import EditStandModal from '../components/EditStandModal'
 import EventAccessGate from '../components/EventAccessGate'
 import { getEventAccess } from '../lib/eventAccess'
 import { ArrowLeft, Edit3, Plus, Layers, Info } from 'lucide-react'
+import NoticeDialog from '../components/NoticeDialog'
 
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
 const STATUS_COLORS = { available:'#22c55e', pending:'#eab308', reserved:'#ef4444', blocked:'#9ca3af' }
@@ -47,6 +48,7 @@ export default function MapPage() {
   const [reservingStand, setReservingStand] = useState(null)
   const [editingStand, setEditingStand] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [notice, setNotice] = useState(null)
 
   if (!event) return <div className="min-h-screen bg-ink-950 text-muted p-8 text-center">Evento no encontrado.</div>
 
@@ -84,7 +86,7 @@ export default function MapPage() {
   async function handleDragEnd(standId, x, y) {
     const { error } = await supabase.from('stands').update({ x, y }).eq('id', standId)
     if (error) {
-      alert(`No se pudo guardar la ubicación del stand: ${error.message}`)
+      setNotice({ title: 'No se pudo guardar', message: `No se pudo guardar la ubicación del stand: ${error.message}`, tone: 'danger' })
       return
     }
 
@@ -103,7 +105,7 @@ export default function MapPage() {
 
       const { error } = await supabase.from('stands').insert(toStandRow(newStand, event.id))
       if (error) {
-        alert(`No se pudo guardar el stand en la base de datos: ${error.message}`)
+        setNotice({ title: 'No se pudo guardar', message: `No se pudo guardar el stand en la base de datos: ${error.message}`, tone: 'danger' })
         return
       }
 
@@ -115,7 +117,7 @@ export default function MapPage() {
         .eq('id', updatedStand.id)
 
       if (error) {
-        alert(`No se pudo actualizar el stand en la base de datos: ${error.message}`)
+        setNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar el stand en la base de datos: ${error.message}`, tone: 'danger' })
         return
       }
 
@@ -127,7 +129,7 @@ export default function MapPage() {
   async function handleDelete(standId) {
     const { error } = await supabase.from('stands').delete().eq('id', standId)
     if (error) {
-      alert(`No se pudo eliminar el stand de la base de datos: ${error.message}`)
+      setNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar el stand de la base de datos: ${error.message}`, tone: 'danger' })
       return
     }
 
@@ -337,6 +339,14 @@ export default function MapPage() {
           onClose={() => setEditingStand(null)}
         />
       )}
+
+      <NoticeDialog
+        open={!!notice}
+        title={notice?.title}
+        message={notice?.message}
+        tone={notice?.tone}
+        onClose={() => setNotice(null)}
+      />
     </div>
   )
 }

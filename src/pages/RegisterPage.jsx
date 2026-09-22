@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Zap, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import BrandFooter from '../components/BrandFooter'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -129,6 +130,7 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
+      <BrandFooter className="absolute bottom-0 inset-x-0" />
     </div>
   )
 }

@@ -213,6 +213,15 @@ function reducer(state, action) {
     }
     case 'REMOVE_DELETED_USER':
       return { ...state, deletedUsers: state.deletedUsers.filter(u => u.id !== action.id) }
+    case 'REACTIVATE_USER': {
+      // Vuelve de "dadas de baja" a la lista normal, como Expositor.
+      const back = state.deletedUsers.find(u => u.id === action.id)
+      return {
+        ...state,
+        deletedUsers: state.deletedUsers.filter(u => u.id !== action.id),
+        users: back ? [...state.users, { ...back, role_id: 2, role: 'user' }] : state.users,
+      }
+    }
     case 'ADD_RESERVATION':
       return {
         ...state,

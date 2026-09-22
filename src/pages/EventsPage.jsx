@@ -4,8 +4,10 @@ import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
 import { Calendar, MapPin, ChevronRight, LogOut, User, LayoutDashboard, Plus, Trash2, Zap, LogIn, Store } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
+import NoticeDialog from '../components/NoticeDialog'
 import { formatEventDate } from '../lib/formatEventDate'
 import { getEventAccess } from '../lib/eventAccess'
+import BrandFooter from '../components/BrandFooter'
 
 const STATUS_LABELS = { active: 'Activo', upcoming: 'Próximo', past: 'Finalizado' }
 const STATUS_STYLES = {
@@ -26,6 +28,7 @@ export default function EventsPage() {
   const { currentUser, events } = state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [notice, setNotice] = useState(null)
   const isAdmin = currentUser?.role_id === 1
 
   async function handleLogout() {
@@ -40,19 +43,19 @@ export default function EventsPage() {
 
     const { error: reservationsError } = await supabase.from('reservations').delete().eq('event_id', event.id)
     if (reservationsError) {
-      alert(`No se pudieron eliminar las reservas del evento: ${reservationsError.message}`)
+      setNotice({ title: 'No se pudo eliminar', message: `No se pudieron eliminar las reservas del evento: ${reservationsError.message}`, tone: 'danger' })
       return
     }
 
     const { error: standsError } = await supabase.from('stands').delete().eq('event_id', event.id)
     if (standsError) {
-      alert(`No se pudieron eliminar los stands del evento: ${standsError.message}`)
+      setNotice({ title: 'No se pudo eliminar', message: `No se pudieron eliminar los stands del evento: ${standsError.message}`, tone: 'danger' })
       return
     }
 
     const { error: eventError } = await supabase.from('events').delete().eq('id', event.id)
     if (eventError) {
-      alert(`No se pudo eliminar el evento de la base de datos: ${eventError.message}`)
+      setNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar el evento de la base de datos: ${eventError.message}`, tone: 'danger' })
       return
     }
 
@@ -287,6 +290,8 @@ export default function EventsPage() {
         </div>
       </div>
 
+      <BrandFooter />
+
       <ConfirmDialog
         open={!!deleteTarget}
         title="¿Eliminar este evento?"
@@ -295,6 +300,14 @@ export default function EventsPage() {
         confirmLabel="Sí, eliminar"
         onConfirm={confirmDeleteEvent}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <NoticeDialog
+        open={!!notice}
+        title={notice?.title}
+        message={notice?.message}
+        tone={notice?.tone}
+        onClose={() => setNotice(null)}
       />
     </div>
   )

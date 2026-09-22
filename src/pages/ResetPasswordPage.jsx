@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Zap } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import BrandFooter from '../components/BrandFooter'
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -110,6 +111,7 @@ export default function ResetPasswordPage() {
           </form>
         </div>
       </div>
+      <BrandFooter className="absolute bottom-0 inset-x-0" />
     </div>
   )
 }
