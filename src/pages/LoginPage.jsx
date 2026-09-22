@@ -44,7 +44,7 @@ export default function LoginPage() {
         .from('sponsor_registrations').select('id', { count: 'exact', head: true }).eq('user_id', data.user.id)
 
       const from = location.state?.from?.pathname
-      navigate(from || (profile?.role_id === 1 ? '/admin' : sponsorCount > 0 ? '/sponsor/panel' : '/events'))
+      navigate(profile?.role_id === 1 ? '/admin' : from || (sponsorCount > 0 ? '/sponsor/panel' : '/events'))
     }
   }
 
