@@ -56,11 +56,11 @@ export default function RegisterPage() {
   const f = (k) => ({ value: form[k], onChange: e => setForm({ ...form, [k]: e.target.value }) })
 
   return (
-    <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-ink-950 flex flex-col items-center justify-center p-4 relative">
       <div aria-hidden="true" className="ambient-blob ambient-b -top-32 -right-24 w-[30rem] h-[30rem]" />
       <div aria-hidden="true" className="ambient-blob ambient-a -bottom-32 -left-24 w-[30rem] h-[30rem]" />
 
-      <div className="w-full max-w-md relative">
+      <div className="w-full max-w-xl relative py-8">
         <div className="anim-rise text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-ink-800 border border-accent/30 rounded-2xl mb-4 bolt-pulse">
             <Zap className="text-accent" size={30} />
@@ -94,30 +94,34 @@ export default function RegisterPage() {
               <input type="text" {...f('businessName')}
                 className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Ej: Ropa Artesanal MJ" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Email</label>
-              <input type="email" required {...f('email')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="tu@email.com" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Teléfono</label>
-              <input type="tel" required {...f('phone')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="11 1234-5678" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">Email</label>
+                <input type="email" required {...f('email')}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="tu@email.com" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">Teléfono</label>
+                <input type="tel" required {...f('phone')}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="11 1234-5678" />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-muted mb-1">Fecha de nacimiento</label>
               <input type="date" required min="1900-01-01" max={todayISO} {...f('birthDate')}
                 className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:dark]" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Contraseña</label>
-              <input type="password" required {...f('password')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Confirmar contraseña</label>
-              <input type="password" required {...f('confirm')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">Contraseña</label>
+                <input type="password" required {...f('password')}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">Confirmar contraseña</label>
+                <input type="password" required {...f('confirm')}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
+              </div>
             </div>
             <button type="submit"
               className="w-full bg-accent hover:bg-accent-soft text-ink-950 font-display font-bold py-3 rounded-xl transition shadow-glow">
@@ -130,7 +134,7 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
-      <BrandFooter className="absolute bottom-0 inset-x-0" />
+      <BrandFooter className="relative" />
     </div>
   )
 }
