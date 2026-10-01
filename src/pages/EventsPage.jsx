@@ -179,7 +179,10 @@ export default function EventsPage() {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((ev, i) => currentUser ? (
+          {events.map((ev, i) => currentUser ? (() => {
+            const access = getEventAccess({ event: ev, user: currentUser, requests: state.eventRequests, reservations: state.reservations })
+            const canSeeAvailability = isAdmin || access.status === 'approved'
+            return (
             <div key={ev.id} style={{ '--i': i + 1 }}
               className="anim-rise card-lift group relative bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden hover:border-accent/50">
               {ev.posterImage ? (
@@ -232,7 +235,6 @@ export default function EventsPage() {
                 >
                   <h3 className="font-display font-bold text-white text-lg leading-tight mb-2">{ev.name}</h3>
                   {ev.requiresApproval && (() => {
-                    const access = getEventAccess({ event: ev, user: currentUser, requests: state.eventRequests, reservations: state.reservations })
                     const chip = isAdmin
                       ? { text: 'Con confirmación', cls: 'bg-accent/10 text-accent-soft border-accent/30' }
                       : access.status === 'approved' ? { text: 'Aprobado', cls: 'bg-accent/10 text-accent-soft border-accent/30' }
@@ -252,16 +254,21 @@ export default function EventsPage() {
                     <span>{ev.location}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex gap-3 text-xs text-muted">
-                      <span>{ev.stands.filter(s => s.status === 'available' && s.sector !== 'sponsor').length} disponibles</span>
-                      <span>{ev.stands.filter(s => s.status === 'reserved' || s.status === 'pending').length} ocupados</span>
-                    </div>
+                    {canSeeAvailability ? (
+                      <div className="flex gap-3 text-xs text-muted">
+                        <span>{ev.stands.filter(s => s.status === 'available' && s.sector !== 'sponsor').length} disponibles</span>
+                        <span>{ev.stands.filter(s => s.status === 'reserved' || s.status === 'pending').length} ocupados</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted">Pedí tu lugar para ver la disponibilidad</span>
+                    )}
                     <ChevronRight size={16} className="text-muted group-hover:text-accent group-hover:translate-x-0.5 transition" />
                   </div>
                 </button>
               </div>
             </div>
-          ) : (
+            )
+          })() : (
             <button key={ev.id} style={{ '--i': i + 1 }}
               onClick={() => navigate(`/events/${ev.id}/map`)}
               className="anim-rise card-lift group text-left bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden hover:border-accent/50">
