@@ -57,6 +57,8 @@ export default function AdminPage() {
   const [showEventModal, setShowEventModal] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM)
+  const [notificationLog, setNotificationLog] = useState(null) // null = todavía no se cargó
+  const [loadingNotificationLog, setLoadingNotificationLog] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [blockUserTarget, setBlockUserTarget] = useState(null)
   const [blockReason, setBlockReason] = useState('')
@@ -1081,6 +1083,67 @@ export default function AdminPage() {
     showNotice({ title: 'Guardado', message: 'Configuración guardada correctamente.', tone: 'success' })
   }
 
+  // Mail de "aprobado" al expositor (al aprobar, o reenviado a mano después).
+  // No frena nada si falla: solo avisa con un cartel chico. Queda registrado
+  // en notification_log pase lo que pase (lo escribe la Edge Function).
+  function sendApprovalEmail(request, { silent = false } = {}) {
+    const u = users.find(x => x.id === request.userId)
+    const ev = events.find(e => e.id === request.eventId)
+    if (!u?.email || !ev) return Promise.resolve()
+
+    return supabase.functions.invoke('rapid-processor', {
+      body: {
+        to: u.email,
+        userName: u.name,
+        businessName: u.businessName,
+        eventName: ev.name,
+        mapUrl: `${window.location.origin}${import.meta.env.BASE_URL}events/${ev.id}/map`,
+        eventRequestId: request.id,
+        eventId: ev.id,
+        userId: u.id,
+      },
+    }).then(({ error: fnError }) => {
+      if (fnError) {
+        console.warn('No se pudo enviar el mail de aprobación:', fnError.message)
+        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el mail de aviso: ${fnError.message}`, tone: 'danger' })
+      } else if (!silent) {
+        showNotice({ title: 'Mail reenviado', message: `Se volvió a mandar el aviso a ${u.email}.`, tone: 'success' })
+      }
+    })
+  }
+
+  function handleResendApprovalEmail(request) {
+    sendApprovalEmail(request)
+  }
+
+  // Solo sysadmin: se carga recién cuando abre el panel del log (no en cada
+  // carga de la página).
+  async function loadNotificationLog() {
+    setLoadingNotificationLog(true)
+    const { data, error } = await supabase
+      .from('notification_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300)
+    setLoadingNotificationLog(false)
+    if (error) {
+      showNotice({ title: 'No se pudo cargar', message: `No se pudo cargar el log de notificaciones: ${error.message}`, tone: 'danger' })
+      return
+    }
+    setNotificationLog((data || []).map(n => ({
+      id: n.id,
+      eventRequestId: n.event_request_id,
+      eventId: n.event_id,
+      userId: n.user_id,
+      toEmail: n.to_email,
+      kind: n.kind,
+      status: n.status,
+      errorMessage: n.error_message,
+      sentBy: n.sent_by,
+      createdAt: n.created_at,
+    })))
+  }
+
   async function decideRequest(request, status) {
     const decidedAt = new Date().toISOString()
     const { error } = await supabase
@@ -1095,27 +1158,8 @@ export default function AdminPage() {
 
     dispatch({ type: 'UPSERT_EVENT_REQUEST', request: { ...request, status, decidedAt } })
 
-    // Mail de "aprobado" al expositor. No frena nada si falla (la aprobación
-    // ya quedó guardada); solo se avisa en consola y con un cartel chico.
     if (status === 'approved') {
-      const u = users.find(x => x.id === request.userId)
-      const ev = events.find(e => e.id === request.eventId)
-      if (u?.email && ev) {
-        supabase.functions.invoke('rapid-processor', {
-          body: {
-            to: u.email,
-            userName: u.name,
-            businessName: u.businessName,
-            eventName: ev.name,
-            mapUrl: `${window.location.origin}${import.meta.env.BASE_URL}events/${ev.id}/map`,
-          },
-        }).then(({ error: fnError }) => {
-          if (fnError) {
-            console.warn('No se pudo enviar el mail de aprobación:', fnError.message)
-            showNotice({ title: 'Aprobado, pero el mail no salió', message: `La solicitud quedó aprobada, pero no se pudo enviar el mail de aviso: ${fnError.message}`, tone: 'danger' })
-          }
-        })
-      }
+      sendApprovalEmail({ ...request, status, decidedAt }, { silent: true })
     }
   }
 
@@ -1257,6 +1301,11 @@ export default function AdminPage() {
             eventRequests={eventRequests} events={events} users={users}
             onDecide={handleDecideRequest}
             onDelete={handleDeleteRequest}
+            onResendEmail={handleResendApprovalEmail}
+            isSysadmin={!!currentUser?.isSysadmin}
+            notificationLog={notificationLog}
+            loadingNotificationLog={loadingNotificationLog}
+            onLoadNotificationLog={loadNotificationLog}
           />
         )}
 

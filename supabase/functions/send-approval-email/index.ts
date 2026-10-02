@@ -1,9 +1,11 @@
-// Edge Function: manda el mail de "solicitud aprobada" cuando el admin aprueba
-// una solicitud de stand. Requiere el secret RESEND_API_KEY configurado en
-// Supabase (Edge Functions > Manage secrets).
+// Edge Function: manda el mail de "solicitud aprobada" (al aprobar, o al
+// reenviar desde el botón de Solicitudes). Requiere el secret RESEND_API_KEY
+// configurado en Supabase (Edge Functions > Manage secrets). Cada envío (o
+// intento fallido) queda registrado en public.notification_log.
 //
 // Para desplegarla sin instalar la CLI: Supabase Dashboard > Edge Functions >
-// "Deploy a new function" > nombre "send-approval-email" > pegar este archivo.
+// editar la función ya desplegada (nombre real en el proyecto: "rapid-processor")
+// y pegar este archivo entero.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -38,8 +40,21 @@ serve(async (req) => {
     const { data: profile } = await supabaseClient.from('profiles').select('role_id').eq('id', user.id).single()
     if (profile?.role_id !== 1) return jsonResponse({ error: 'Solo un admin puede enviar esta notificación' }, 403)
 
-    const { to, businessName, userName, eventName, mapUrl } = await req.json()
+    const { to, businessName, userName, eventName, mapUrl, eventRequestId, eventId, userId } = await req.json()
     if (!to || !eventName) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
+
+    async function logAttempt(status, errorMessage = null) {
+      await supabaseClient.from('notification_log').insert({
+        event_request_id: eventRequestId || null,
+        event_id: eventId || null,
+        user_id: userId || null,
+        to_email: to,
+        kind: 'approval',
+        status,
+        error_message: errorMessage,
+        sent_by: user.id,
+      })
+    }
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #1a1a2b;">
@@ -74,9 +89,11 @@ serve(async (req) => {
 
     if (!resendRes.ok) {
       const errText = await resendRes.text()
+      await logAttempt('error', errText.slice(0, 500))
       return jsonResponse({ error: `No se pudo enviar con Resend: ${errText}` }, 502)
     }
 
+    await logAttempt('sent')
     return jsonResponse({ ok: true })
   } catch (err) {
     return jsonResponse({ error: err.message }, 500)

@@ -20,11 +20,33 @@ export default function ProfilePage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
+  // Las fotos de celular pueden pesar varios MB; guardadas tal cual en la
+  // base (como base64) hacen que TODO el panel de admin tarde en cargar,
+  // porque trae los perfiles de todos los expositores en cada ingreso. Se
+  // achican antes de guardar, igual que las imágenes de eventos.
   function handlePhotoUpload(e) {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onloadend = () => setForm(prev => ({ ...prev, businessPhoto: reader.result }))
+    reader.onloadend = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX_DIM = 1000
+        let { width, height } = img
+        if (width > MAX_DIM || height > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(width, height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        setForm(prev => ({ ...prev, businessPhoto: canvas.toDataURL('image/jpeg', 0.82) }))
+      }
+      img.onerror = () => setForm(prev => ({ ...prev, businessPhoto: reader.result }))
+      img.src = reader.result
+    }
     reader.readAsDataURL(file)
   }
 

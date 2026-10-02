@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Search, Check, X, RotateCcw, Trash2, Eye, Download, ChevronLeft, ChevronRight, Instagram, Store, Phone, Mail, MessageSquare, ShieldCheck } from 'lucide-react'
+import { Search, Check, X, RotateCcw, Trash2, Eye, Download, ChevronLeft, ChevronRight, ChevronDown, Instagram, Store, Phone, Mail, MessageSquare, ShieldCheck, ScrollText, Loader2 } from 'lucide-react'
 import { formatDateTime, formatBirthDate } from '../../lib/formatDateTime'
 import { exportRequestsCSV } from './adminHelpers'
 
@@ -72,7 +72,7 @@ function Field({ label, value }) {
 function RequestDetailModal({ request, user, event, onClose }) {
   if (!request) return null
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -112,17 +112,27 @@ function RequestDetailModal({ request, user, event, onClose }) {
   )
 }
 
-export default function RequestsTab({ eventRequests, events, users, onDecide, onDelete = () => {} }) {
+export default function RequestsTab({
+  eventRequests, events, users, onDecide, onDelete = () => {}, onResendEmail = () => {},
+  isSysadmin = false, notificationLog, loadingNotificationLog = false, onLoadNotificationLog = () => {},
+}) {
   const approvalEvents = useMemo(() => events.filter(e => e.requiresApproval), [events])
   const [statusFilter, setStatusFilter] = useState('pending')
   const [eventFilter, setEventFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [detailRequest, setDetailRequest] = useState(null)
   const [page, setPage] = useState(1)
+  const [showLog, setShowLog] = useState(false)
 
   function changeStatusFilter(id) { setStatusFilter(id); setPage(1) }
   function changeEventFilter(id) { setEventFilter(id); setPage(1) }
   function changeSearch(v) { setSearch(v); setPage(1) }
+
+  function toggleLog() {
+    const next = !showLog
+    setShowLog(next)
+    if (next && notificationLog === null) onLoadNotificationLog()
+  }
 
   const requests = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -267,6 +277,12 @@ export default function RequestsTab({ eventRequests, events, users, onDecide, on
                     {r.status === 'rejected' ? <RotateCcw size={14} /> : <Check size={14} />} Aprobar
                   </button>
                 )}
+                {r.status === 'approved' && (
+                  <button onClick={() => onResendEmail(r)}
+                    className="flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl text-sm font-semibold transition">
+                    <Mail size={14} /> Reenviar mail
+                  </button>
+                )}
                 {r.status !== 'rejected' && (
                   <button onClick={() => onDecide(r, 'rejected')}
                     className="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition">
@@ -286,6 +302,64 @@ export default function RequestsTab({ eventRequests, events, users, onDecide, on
       })}
 
       <Pager page={safePage} totalPages={totalPages} onChange={setPage} />
+
+      {isSysadmin && (
+        <div className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <button onClick={toggleLog}
+            className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50 transition">
+            <span className="flex items-center gap-2 font-bold text-gray-800">
+              <ScrollText size={16} className="text-violet-500" />
+              Log de notificaciones
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600">Solo sysadmin</span>
+            </span>
+            <ChevronDown size={18} className={`text-gray-400 transition-transform ${showLog ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showLog && (
+            <div className="border-t border-gray-100">
+              {loadingNotificationLog ? (
+                <div className="p-8 flex items-center justify-center text-gray-400 gap-2 text-sm">
+                  <Loader2 size={16} className="animate-spin" /> Cargando...
+                </div>
+              ) : !notificationLog || notificationLog.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Todavía no se mandó ninguna notificación.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Fecha</th>
+                        <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Destinatario</th>
+                        <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Evento</th>
+                        <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {notificationLog.map(n => {
+                        const ev = events.find(e => e.id === n.eventId)
+                        return (
+                          <tr key={n.id}>
+                            <td className="px-5 py-2.5 text-gray-500 whitespace-nowrap">{formatDateTime(n.createdAt)}</td>
+                            <td className="px-5 py-2.5 text-gray-800">{n.toEmail}</td>
+                            <td className="px-5 py-2.5 text-gray-600">{ev?.name || '—'}</td>
+                            <td className="px-5 py-2.5">
+                              {n.status === 'sent' ? (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Enviado</span>
+                              ) : (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200" title={n.errorMessage || ''}>Error</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <RequestDetailModal
         request={detailRequest}
