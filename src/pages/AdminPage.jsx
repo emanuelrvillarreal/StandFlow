@@ -1094,6 +1094,29 @@ export default function AdminPage() {
     }
 
     dispatch({ type: 'UPSERT_EVENT_REQUEST', request: { ...request, status, decidedAt } })
+
+    // Mail de "aprobado" al expositor. No frena nada si falla (la aprobación
+    // ya quedó guardada); solo se avisa en consola y con un cartel chico.
+    if (status === 'approved') {
+      const u = users.find(x => x.id === request.userId)
+      const ev = events.find(e => e.id === request.eventId)
+      if (u?.email && ev) {
+        supabase.functions.invoke('rapid-processor', {
+          body: {
+            to: u.email,
+            userName: u.name,
+            businessName: u.businessName,
+            eventName: ev.name,
+            mapUrl: `${window.location.origin}${import.meta.env.BASE_URL}events/${ev.id}/map`,
+          },
+        }).then(({ error: fnError }) => {
+          if (fnError) {
+            console.warn('No se pudo enviar el mail de aprobación:', fnError.message)
+            showNotice({ title: 'Aprobado, pero el mail no salió', message: `La solicitud quedó aprobada, pero no se pudo enviar el mail de aviso: ${fnError.message}`, tone: 'danger' })
+          }
+        })
+      }
+    }
   }
 
   function handleDecideRequest(request, status) {
