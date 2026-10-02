@@ -28,7 +28,7 @@ import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
 
 const EMPTY_EVENT_FORM = {
-  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', paymentInstructions: '',
+  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', contactMethod: 'whatsapp', organizerEmail: '', paymentInstructions: '',
   posterImage: null, mapImageSalon: null, mapImageGaleria: null, mapImageSponsor: null, copyFrom: 'none',
   sponsorsEnabled: false, sponsorCode: '',
 }
@@ -111,12 +111,34 @@ export default function AdminPage() {
     }
   }, [location.pathname, location.state, navigate])
 
+  // Las fotos de celular pueden pesar varios MB; guardadas tal cual en la base
+  // (como base64) hacían que el UPDATE del evento tardara tanto que a veces
+  // Postgres lo cortaba por timeout. Acá se achican a un tamaño razonable
+  // antes de guardarlas, igual para póster, mapas y mapa de Sponsors.
+  const MAX_IMAGE_DIM = 1600
+  const IMAGE_QUALITY = 0.82
+
   function handleFileUpload(e, type) {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
     reader.onloadend = () => {
-      setEventForm(prev => ({ ...prev, [type]: reader.result }))
+      const img = new Image()
+      img.onload = () => {
+        let { width, height } = img
+        if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
+          const scale = MAX_IMAGE_DIM / Math.max(width, height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        setEventForm(prev => ({ ...prev, [type]: canvas.toDataURL('image/jpeg', IMAGE_QUALITY) }))
+      }
+      img.onerror = () => setEventForm(prev => ({ ...prev, [type]: reader.result }))
+      img.src = reader.result
     }
     reader.readAsDataURL(file)
   }
@@ -461,6 +483,8 @@ export default function AdminPage() {
       location: event.location || '',
       status: event.status || 'upcoming',
       whatsapp: event.whatsapp || '',
+      contactMethod: event.contactMethod || 'whatsapp',
+      organizerEmail: event.organizerEmail || '',
       paymentInstructions: event.paymentInstructions || '',
       posterImage: event.posterImage || null,
       mapImageSalon: event.mapImage?.salon || null,
@@ -519,6 +543,8 @@ export default function AdminPage() {
           galeria: eventForm.mapImageGaleria || '/maps/galeria.jpeg',
         },
       whatsapp: eventForm.whatsapp || sourceEvent?.whatsapp || state.settings?.whatsappNumber || '',
+      contactMethod: eventForm.contactMethod || sourceEvent?.contactMethod || 'whatsapp',
+      organizerEmail: eventForm.organizerEmail || sourceEvent?.organizerEmail || '',
       paymentInstructions: eventForm.paymentInstructions || sourceEvent?.paymentInstructions || '',
       stands: sourceEvent
         ? sourceEvent.stands.map(stand => ({
@@ -574,6 +600,8 @@ export default function AdminPage() {
       location: eventForm.location,
       status: eventForm.status,
       whatsapp: eventForm.whatsapp,
+      contactMethod: eventForm.contactMethod || 'whatsapp',
+      organizerEmail: eventForm.organizerEmail,
       paymentInstructions: eventForm.paymentInstructions,
       posterImage: eventForm.posterImage,
       mapImage: {
@@ -582,7 +610,16 @@ export default function AdminPage() {
       },
     }
 
-    const { error } = await supabase.from('events').update(toEventRow(updatedEvent)).eq('id', editingEvent.id)
+    // No reenviar imágenes que no cambiaron: son pesadas y es lo que hacía que
+    // cualquier edición (aunque no tocara el mapa) tardara mucho / diera timeout.
+    const row = toEventRow(updatedEvent)
+    if (eventForm.posterImage === (editingEvent.posterImage || null)) delete row.poster_image
+    const mapChanged =
+      eventForm.mapImageSalon !== (editingEvent.mapImage?.salon || null) ||
+      eventForm.mapImageGaleria !== (editingEvent.mapImage?.galeria || null)
+    if (!mapChanged) delete row.map_image
+
+    const { error } = await supabase.from('events').update(row).eq('id', editingEvent.id)
     if (error) {
       showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar el evento: ${error.message}`, tone: 'danger' })
       return
@@ -892,6 +929,41 @@ export default function AdminPage() {
     })
   }
 
+  function handlePurgeManyUsers(usersToDelete) {
+    if (usersToDelete.length === 0) return
+    requestConfirm({
+      title: `¿Eliminar definitivamente ${usersToDelete.length} cuenta${usersToDelete.length === 1 ? '' : 's'}?`,
+      itemLabel: usersToDelete.length === 1
+        ? `${usersToDelete[0].name} ${usersToDelete[0].lastName} · ${usersToDelete[0].email}`
+        : `${usersToDelete.length} cuentas seleccionadas`,
+      message: 'Se borran de la base de datos y no se pueden recuperar: también se eliminan sus reservas y solicitudes, y sus stands quedan libres. Las cuentas con pagos registrados no se pueden eliminar y van a quedar como estaban.',
+      confirmLabel: 'Sí, eliminar definitivamente',
+      onConfirm: async () => {
+        let okCount = 0
+        const failed = []
+        for (const user of usersToDelete) {
+          const { error } = await supabase.rpc('purge_user_account', { p_user_id: user.id })
+          if (error) {
+            failed.push(user)
+          } else {
+            okCount++
+            dispatch({ type: 'REMOVE_DELETED_USER', id: user.id })
+          }
+        }
+        reloadData()
+        if (failed.length === 0) {
+          showNotice({ title: 'Listo', message: `Se eliminaron ${okCount} cuenta${okCount === 1 ? '' : 's'} definitivamente.`, tone: 'success' })
+        } else {
+          showNotice({
+            title: 'Terminado con algunas excepciones',
+            message: `Se eliminaron ${okCount}. No se pudieron eliminar ${failed.length} (seguramente tienen pagos registrados): ${failed.map(u => u.email).join(', ')}`,
+            tone: 'danger',
+          })
+        }
+      },
+    })
+  }
+
   // Vuelve a habilitar una cuenta dada de baja. No queda registrado qué tipo de
   // usuario era antes de la baja, así que vuelve como Expositor; si era admin,
   // se le cambia el tipo desde "Modificar" después de reactivarla.
@@ -1014,6 +1086,26 @@ export default function AdminPage() {
     decideRequest(request, status)
   }
 
+  function handleDeleteRequest(request) {
+    const u = users.find(x => x.id === request.userId)
+    const ev = events.find(e => e.id === request.eventId)
+    requestConfirm({
+      title: '¿Eliminar esta solicitud?',
+      itemLabel: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim(),
+      message: `Se borra por completo (incluido el historial para ${ev?.name || 'este evento'}). La persona va a poder mandar una solicitud nueva cuando quiera.`,
+      confirmLabel: 'Sí, eliminar',
+      tone: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('event_requests').delete().eq('id', request.id)
+        if (error) {
+          showNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar la solicitud: ${error.message}`, tone: 'danger' })
+          return
+        }
+        dispatch({ type: 'REMOVE_EVENT_REQUEST', id: request.id })
+      },
+    })
+  }
+
   const pendingRequestsCount = eventRequests.filter(r =>
     r.status === 'pending' && events.find(e => e.id === r.eventId)?.requiresApproval
   ).length
@@ -1115,6 +1207,7 @@ export default function AdminPage() {
           <RequestsTab
             eventRequests={eventRequests} events={events} users={users}
             onDecide={handleDecideRequest}
+            onDelete={handleDeleteRequest}
           />
         )}
 
@@ -1187,6 +1280,7 @@ export default function AdminPage() {
             isSysadmin={!!currentUser?.isSysadmin}
             deletedUsers={state.deletedUsers || []}
             onPurgeUser={handlePurgeUser}
+            onPurgeMany={handlePurgeManyUsers}
             onReactivateUser={handleReactivateUser}
             onResetPassword={handleResetUserPassword}
             onBlockUser={openBlockUserModal}

@@ -36,6 +36,27 @@ export function exportCSV(reservations, events, users, stands, categories) {
   URL.revokeObjectURL(url)
 }
 
+const REQUEST_STATUS_LABELS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }
+
+export function exportRequestsCSV(requests, events, users) {
+  const header = ['Evento', 'Emprendimiento', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Instagram', 'Estado', 'Mensaje', 'Fecha de solicitud', 'Fecha de resolución']
+  const rows = requests.map(r => {
+    const u = users.find(x => x.id === r.userId)
+    const ev = events.find(x => x.id === r.eventId)
+    return [
+      ev?.name ?? '', u?.businessName ?? '', u?.name ?? '', u?.lastName ?? '', u?.email ?? '', u?.phone ?? '', u?.instagram ?? '',
+      REQUEST_STATUS_LABELS[r.status] ?? r.status, r.message ?? '',
+      formatDateTime(r.createdAt), formatDateTime(r.decidedAt) || '',
+    ]
+  })
+  const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'solicitudes.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function toEventRow(event) {
   return {
     id: event.id,
@@ -50,6 +71,8 @@ export function toEventRow(event) {
     poster_image: event.posterImage || null,
     whatsapp: event.whatsapp,
     payment_instructions: event.paymentInstructions,
+    contact_method: event.contactMethod || 'whatsapp',
+    organizer_email: event.organizerEmail || null,
   }
 }
 

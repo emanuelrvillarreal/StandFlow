@@ -275,10 +275,31 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">WhatsApp del evento</label>
-              <input type="text" value={eventForm.whatsapp} onChange={e => setEventForm({ ...eventForm, whatsapp: e.target.value })}
-                placeholder="Ej: 5491112345678"
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition" />
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Contacto del organizador</label>
+              <p className="text-[10px] text-gray-400 mb-2 -mt-1">Así te van a poder escribir los expositores (ej: cuando no se aprueba una solicitud).</p>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[
+                  { id: 'whatsapp', label: 'WhatsApp' },
+                  { id: 'email', label: 'Mail' },
+                  { id: 'both', label: 'Los dos' },
+                ].map(opt => (
+                  <button key={opt.id} type="button"
+                    onClick={() => setEventForm({ ...eventForm, contactMethod: opt.id })}
+                    className={`py-2 rounded-xl text-sm font-semibold border transition ${eventForm.contactMethod === opt.id ? 'bg-violet-600 border-violet-600 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-violet-300'}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {eventForm.contactMethod !== 'email' && (
+                <input type="text" value={eventForm.whatsapp} onChange={e => setEventForm({ ...eventForm, whatsapp: e.target.value })}
+                  placeholder="WhatsApp: ej 5491112345678"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition mb-2" />
+              )}
+              {eventForm.contactMethod !== 'whatsapp' && (
+                <input type="email" value={eventForm.organizerEmail} onChange={e => setEventForm({ ...eventForm, organizerEmail: e.target.value })}
+                  placeholder="Mail: ej contacto@evento.com"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition" />
+              )}
             </div>
 
             <div>

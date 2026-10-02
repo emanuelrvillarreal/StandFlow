@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShieldCheck, Clock, XCircle, MessageCircle, Send } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, Clock, XCircle, MessageCircle, Mail, Send } from 'lucide-react'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
 import { formatEventDate } from '../lib/formatEventDate'
@@ -15,7 +15,11 @@ export default function EventAccessGate({ event, access }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
-  const whatsapp = String(event.whatsapp || state.settings?.whatsappNumber || '').replace(/\D/g, '')
+  const contactMethod = event.contactMethod || 'whatsapp'
+  const whatsapp = contactMethod !== 'email'
+    ? String(event.whatsapp || state.settings?.whatsappNumber || '').replace(/\D/g, '')
+    : ''
+  const organizerEmail = contactMethod !== 'whatsapp' ? (event.organizerEmail || '') : ''
 
   async function handleRequest() {
     setSending(true)
@@ -137,6 +141,12 @@ export default function EventAccessGate({ event, access }) {
                   <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer"
                     className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl transition">
                     <MessageCircle size={16} /> Escribir a los organizadores
+                  </a>
+                )}
+                {organizerEmail && (
+                  <a href={`mailto:${organizerEmail}?subject=${encodeURIComponent(`Consulta - ${event.name}`)}`}
+                    className="w-full flex items-center justify-center gap-2 bg-ink-700 hover:bg-ink-600 border border-ink-600 text-white font-semibold py-3 rounded-xl transition">
+                    <Mail size={16} /> Enviar un mail al organizador
                   </a>
                 )}
               </>

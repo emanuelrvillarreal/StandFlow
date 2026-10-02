@@ -633,6 +633,8 @@ export function AppProvider({ children }) {
         requiresApproval: !!ev.requires_approval,
         allowPartialDays: !!ev.allow_partial_days,
         paymentInstructions: ev.payment_instructions,
+        contactMethod: ev.contact_method || 'whatsapp',
+        organizerEmail: ev.organizer_email || '',
         sponsors: (() => {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
           return { enabled: !!cfg?.enabled, code: cfg?.code || '', image: cfg?.image || null }

@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Search, Check, X, RotateCcw, Instagram, Store, Phone, Mail, MessageSquare, ShieldCheck } from 'lucide-react'
-import { formatDateTime } from '../../lib/formatDateTime'
+import { Search, Check, X, RotateCcw, Trash2, Eye, Download, ChevronLeft, ChevronRight, Instagram, Store, Phone, Mail, MessageSquare, ShieldCheck } from 'lucide-react'
+import { formatDateTime, formatBirthDate } from '../../lib/formatDateTime'
+import { exportRequestsCSV } from './adminHelpers'
+
+const PAGE_SIZE = 15
 
 const STATUS_FILTERS = [
   { id: 'pending', label: 'Pendientes' },
@@ -9,6 +12,46 @@ const STATUS_FILTERS = [
   { id: 'all', label: 'Todas' },
 ]
 
+function pageTokens(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const tokens = new Set([1, total, current, current - 1, current + 1])
+  const sorted = [...tokens].filter(n => n >= 1 && n <= total).sort((a, b) => a - b)
+  const out = []
+  sorted.forEach((n, i) => {
+    if (i > 0 && n - sorted[i - 1] > 1) out.push('…')
+    out.push(n)
+  })
+  return out
+}
+
+function Pager({ page, totalPages, onChange }) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+      <button onClick={() => onChange(Math.max(1, page - 1))} disabled={page === 1}
+        aria-label="Página anterior"
+        className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-white hover:text-violet-600 hover:border-violet-200 transition bg-white">
+        <ChevronLeft size={16} />
+      </button>
+      {pageTokens(page, totalPages).map((t, i) => t === '…' ? (
+        <span key={`e${i}`} className="w-9 h-9 flex items-center justify-center text-gray-300 text-sm select-none">…</span>
+      ) : (
+        <button key={t} onClick={() => onChange(t)} aria-current={t === page ? 'page' : undefined}
+          className={`w-9 h-9 flex items-center justify-center rounded-xl text-sm font-semibold transition ${
+            t === page ? 'bg-violet-600 text-white shadow-md shadow-violet-200' : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700'
+          }`}>
+          {t}
+        </button>
+      ))}
+      <button onClick={() => onChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+        aria-label="Página siguiente"
+        className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-white hover:text-violet-600 hover:border-violet-200 transition bg-white">
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  )
+}
+
 const STATUS_BADGE = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
   approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -16,11 +59,70 @@ const STATUS_BADGE = {
 }
 const STATUS_TEXT = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }
 
-export default function RequestsTab({ eventRequests, events, users, onDecide }) {
+function Field({ label, value }) {
+  if (!value) return null
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-bold text-gray-400 uppercase">{label}</p>
+      <p className="text-sm text-gray-800 break-words">{value}</p>
+    </div>
+  )
+}
+
+function RequestDetailModal({ request, user, event, onClose }) {
+  if (!request) return null
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-lg font-bold text-gray-900">Detalle de la solicitud</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition"><X size={20} /></button>
+          </div>
+
+          {user?.businessPhoto && (
+            <img src={user.businessPhoto} alt={user.businessName || ''} className="w-full h-48 object-cover rounded-xl border" />
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            <Field label="Emprendimiento" value={user?.businessName} />
+            <Field label="Nombre" value={user ? `${user.name} ${user.lastName}`.trim() : ''} />
+            <Field label="Email" value={user?.email} />
+            <Field label="Teléfono" value={user?.phone} />
+            <Field label="Instagram" value={user?.instagram} />
+            <Field label="Fecha de nacimiento" value={formatBirthDate(user?.birthDate)} />
+            <Field label="Evento" value={event?.name} />
+            <Field label="Estado" value={STATUS_TEXT[request.status]} />
+          </div>
+
+          {request.message && (
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">Mensaje</p>
+              <p className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-xl p-3">{request.message}</p>
+            </div>
+          )}
+
+          <p className="text-[11px] text-gray-400">
+            Solicitada el {formatDateTime(request.createdAt)}
+            {request.decidedAt && request.status !== 'pending' && ` · resuelta el ${formatDateTime(request.decidedAt)}`}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function RequestsTab({ eventRequests, events, users, onDecide, onDelete = () => {} }) {
   const approvalEvents = useMemo(() => events.filter(e => e.requiresApproval), [events])
   const [statusFilter, setStatusFilter] = useState('pending')
   const [eventFilter, setEventFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [detailRequest, setDetailRequest] = useState(null)
+  const [page, setPage] = useState(1)
+
+  function changeStatusFilter(id) { setStatusFilter(id); setPage(1) }
+  function changeEventFilter(id) { setEventFilter(id); setPage(1) }
+  function changeSearch(v) { setSearch(v); setPage(1) }
 
   const requests = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -36,6 +138,10 @@ export default function RequestsTab({ eventRequests, events, users, onDecide }) 
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   }, [eventRequests, approvalEvents, users, statusFilter, eventFilter, search])
+
+  const totalPages = Math.max(1, Math.ceil(requests.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageRequests = requests.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   const counts = useMemo(() => {
     const scoped = eventRequests.filter(r => approvalEvents.some(e => e.id === r.eventId))
@@ -67,25 +173,29 @@ export default function RequestsTab({ eventRequests, events, users, onDecide }) 
       <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map(f => (
-            <button key={f.id} onClick={() => setStatusFilter(f.id)}
+            <button key={f.id} onClick={() => changeStatusFilter(f.id)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition ${statusFilter === f.id ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f.label}
               <span className={`text-[11px] px-1.5 rounded-full ${statusFilter === f.id ? 'bg-white/25' : 'bg-white text-gray-500'}`}>{counts[f.id]}</span>
             </button>
           ))}
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <select value={eventFilter} onChange={e => setEventFilter(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:gap-3">
+          <select value={eventFilter} onChange={e => changeEventFilter(e.target.value)}
+            className="col-span-2 sm:col-span-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
             <option value="all">Todos los eventos con confirmación</option>
             {approvalEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
           </select>
-          <div className="relative flex-1">
+          <div className="relative col-span-2 sm:col-span-1 sm:flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
+            <input value={search} onChange={e => changeSearch(e.target.value)}
               placeholder="Buscar por nombre, emprendimiento, email o Instagram..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
           </div>
+          <button onClick={() => exportRequestsCSV(requests, events, users)}
+            className="col-span-2 sm:col-span-1 flex-shrink-0 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition">
+            <Download size={15} /> Exportar CSV
+          </button>
         </div>
       </div>
 
@@ -95,7 +205,13 @@ export default function RequestsTab({ eventRequests, events, users, onDecide }) 
         </div>
       )}
 
-      {requests.map(r => {
+      {requests.length > 0 && (
+        <p className="text-xs text-gray-400 px-1">
+          Mostrando {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, requests.length)} de {requests.length} solicitudes
+        </p>
+      )}
+
+      {pageRequests.map(r => {
         const u = users.find(x => x.id === r.userId)
         const ev = events.find(x => x.id === r.eventId)
         return (
@@ -140,17 +256,27 @@ export default function RequestsTab({ eventRequests, events, users, onDecide }) 
                 </p>
               </div>
 
-              <div className="flex sm:flex-col gap-2 sm:justify-center flex-shrink-0">
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-col sm:justify-center sm:w-36 flex-shrink-0">
+                <button onClick={() => setDetailRequest(r)}
+                  className="flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition">
+                  <Eye size={14} /> Ver detalles
+                </button>
                 {r.status !== 'approved' && (
                   <button onClick={() => onDecide(r, 'approved')}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
+                    className="flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
                     {r.status === 'rejected' ? <RotateCcw size={14} /> : <Check size={14} />} Aprobar
                   </button>
                 )}
                 {r.status !== 'rejected' && (
                   <button onClick={() => onDecide(r, 'rejected')}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition">
+                    className="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition">
                     <X size={14} /> {r.status === 'approved' ? 'Revocar' : 'Rechazar'}
+                  </button>
+                )}
+                {r.status === 'rejected' && (
+                  <button onClick={() => onDelete(r)}
+                    className="flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
+                    <Trash2 size={14} /> Eliminar
                   </button>
                 )}
               </div>
@@ -158,6 +284,15 @@ export default function RequestsTab({ eventRequests, events, users, onDecide }) 
           </div>
         )
       })}
+
+      <Pager page={safePage} totalPages={totalPages} onChange={setPage} />
+
+      <RequestDetailModal
+        request={detailRequest}
+        user={detailRequest ? users.find(x => x.id === detailRequest.userId) : null}
+        event={detailRequest ? events.find(x => x.id === detailRequest.eventId) : null}
+        onClose={() => setDetailRequest(null)}
+      />
     </div>
   )
 }

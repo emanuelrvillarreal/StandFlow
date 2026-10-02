@@ -2,9 +2,22 @@ import { useMemo, useState } from 'react'
 import { formatBirthDate } from '../../lib/formatDateTime'
 import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw } from 'lucide-react'
 
-export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, isSysadmin = false, deletedUsers = [], onPurgeUser, onReactivateUser = () => {} }) {
+export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {} }) {
   const [search, setSearch] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+
+  function toggleSelected(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(prev => prev.size === deletedUsers.length ? new Set() : new Set(deletedUsers.map(u => u.id)))
+  }
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -125,24 +138,48 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
               </p>
               {deletedUsers.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4">No hay cuentas dadas de baja.</p>
-              ) : deletedUsers.map(u => (
-                <div key={u.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{u.name || '(sin nombre)'} {u.lastName}</p>
-                    <p className="text-xs text-gray-400 truncate">{u.email}</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3 px-1 pb-1">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 cursor-pointer select-none">
+                      <input type="checkbox"
+                        checked={selectedIds.size > 0 && selectedIds.size === deletedUsers.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded accent-red-600" />
+                      Seleccionar todas ({deletedUsers.length})
+                    </label>
+                    {selectedIds.size > 0 && (
+                      <button
+                        onClick={() => onPurgeMany(deletedUsers.filter(u => selectedIds.has(u.id)))}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded-xl transition">
+                        <Trash2 size={14} /> Eliminar seleccionadas ({selectedIds.size})
+                      </button>
+                    )}
                   </div>
-                  <div className="flex-shrink-0 flex items-center gap-2">
-                    <button onClick={() => onReactivateUser(u)}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl transition">
-                      <RotateCcw size={14} /> Reactivar
-                    </button>
-                    <button onClick={() => onPurgeUser(u)}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition">
-                      <Trash2 size={14} /> Eliminar definitivamente
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  {deletedUsers.map(u => (
+                    <div key={u.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input type="checkbox" checked={selectedIds.has(u.id)} onChange={() => toggleSelected(u.id)}
+                          className="w-4 h-4 rounded accent-red-600 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{u.name || '(sin nombre)'} {u.lastName}</p>
+                          <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 flex items-center gap-2">
+                        <button onClick={() => onReactivateUser(u)}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl transition">
+                          <RotateCcw size={14} /> Reactivar
+                        </button>
+                        <button onClick={() => onPurgeUser(u)}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition">
+                          <Trash2 size={14} /> Eliminar definitivamente
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
