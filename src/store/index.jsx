@@ -313,6 +313,37 @@ function reducer(state, action) {
         ),
       }
     }
+    case 'ADD_MAP_LABEL': {
+      return {
+        ...state,
+        events: state.events.map(ev =>
+          ev.id === action.eventId
+            ? { ...ev, labels: [...(ev.labels || []), action.label] }
+            : ev
+        ),
+      }
+    }
+    case 'UPDATE_MAP_LABEL': {
+      const { eventId, labelId, updates } = action
+      return {
+        ...state,
+        events: state.events.map(ev =>
+          ev.id === eventId
+            ? { ...ev, labels: (ev.labels || []).map(l => l.id === labelId ? { ...l, ...updates } : l) }
+            : ev
+        ),
+      }
+    }
+    case 'DELETE_MAP_LABEL': {
+      return {
+        ...state,
+        events: state.events.map(ev =>
+          ev.id === action.eventId
+            ? { ...ev, labels: (ev.labels || []).filter(l => l.id !== action.labelId) }
+            : ev
+        ),
+      }
+    }
     case 'ADD_CATEGORY':
       return { ...state, categories: [...state.categories, action.category] }
     case 'UPDATE_CATEGORY':
@@ -561,7 +592,8 @@ export function AppProvider({ children }) {
         { data: requestRows },
         { data: sponsorSettingRows },
         { data: sponsorRegRows },
-        { data: sponsorMemberRows }
+        { data: sponsorMemberRows },
+        { data: mapLabelRows }
       ] = await Promise.all([
         fetchAllRows('categories', 'id'),
         fetchAllRows('events', 'date'),
@@ -575,7 +607,8 @@ export function AppProvider({ children }) {
         // un Sponsor ve el suyo. Si el SQL de sponsors todavía no se corrió, queda vacío.
         fetchAllRows('event_sponsor_settings', 'event_id'),
         fetchAllRows('sponsor_registrations', 'created_at'),
-        fetchAllRows('sponsor_members', 'position')
+        fetchAllRows('sponsor_members', 'position'),
+        fetchAllRows('map_labels', 'created_at')
       ])
 
       // Sin sesión, profiles/reservations están restringidos por RLS y
@@ -623,6 +656,10 @@ export function AppProvider({ children }) {
       }))
 
       const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)
+      const mappedMapLabels = (mapLabelRows || []).map(l => ({
+        id: l.id, eventId: l.event_id, sector: l.sector, text: l.text, x: Number(l.x), y: Number(l.y),
+        color: l.color || '#0b0b16', rotation: Number(l.rotation) || 0,
+      }))
       const mappedUsers = (profiles || []).filter(p => p.role_id !== -1).map(mapProfile)
       const mappedDeletedUsers = (profiles || []).filter(p => p.role_id === -1).map(mapProfile)
       const eventsWithStands = (events || []).map(ev => ({
@@ -642,7 +679,8 @@ export function AppProvider({ children }) {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
           return { enabled: !!cfg?.enabled, code: cfg?.code || '', image: cfg?.image || null }
         })(),
-        stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id)
+        stands: mappedStandsWithReservations.filter(s => s.eventId === ev.id),
+        labels: mappedMapLabels.filter(l => l.eventId === ev.id)
       }))
 
       dispatch({

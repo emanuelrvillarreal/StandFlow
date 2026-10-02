@@ -16,6 +16,15 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #0707
 .stand-dot.edit-mode { cursor: grab; }
 .stand-dot.edit-mode:active { cursor: grabbing; }
 
+.map-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  user-select: none;
+  pointer-events: none;
+}
+.map-label.edit-mode { pointer-events: auto; cursor: grab; }
+.map-label.edit-mode:active { cursor: grabbing; }
+
 .map-container {
   position: relative;
   display: inline-block;

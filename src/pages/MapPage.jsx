@@ -6,9 +6,11 @@ import StandDot from '../components/StandDot'
 import StandModal from '../components/StandModal'
 import ReservationFlow from '../components/ReservationFlow'
 import EditStandModal from '../components/EditStandModal'
+import MapLabel from '../components/MapLabel'
+import EditLabelModal from '../components/EditLabelModal'
 import EventAccessGate from '../components/EventAccessGate'
 import { getEventAccess } from '../lib/eventAccess'
-import { ArrowLeft, Edit3, Plus, Layers, Info } from 'lucide-react'
+import { ArrowLeft, Edit3, Plus, Layers, Info, Type } from 'lucide-react'
 import NoticeDialog from '../components/NoticeDialog'
 
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
@@ -47,6 +49,7 @@ export default function MapPage() {
   const [selectedStand, setSelectedStand] = useState(null)
   const [reservingStand, setReservingStand] = useState(null)
   const [editingStand, setEditingStand] = useState(null)
+  const [editingLabel, setEditingLabel] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
   const [notice, setNotice] = useState(null)
 
@@ -137,6 +140,49 @@ export default function MapPage() {
     setEditingStand(null)
   }
 
+  async function handleLabelDragEnd(labelId, x, y) {
+    const { error } = await supabase.from('map_labels').update({ x, y }).eq('id', labelId)
+    if (error) {
+      setNotice({ title: 'No se pudo guardar', message: `No se pudo guardar la ubicación del texto: ${error.message}`, tone: 'danger' })
+      return
+    }
+    dispatch({ type: 'UPDATE_MAP_LABEL', eventId: event.id, labelId, updates: { x, y } })
+  }
+
+  async function handleSaveLabel(form) {
+    if (!form.id) {
+      const newLabel = { id: createUuid(), sector, x: 50, y: 50, color: '#0b0b16', rotation: 0, ...form }
+      const { error } = await supabase.from('map_labels').insert({
+        id: newLabel.id, event_id: event.id, sector: newLabel.sector, text: newLabel.text,
+        x: newLabel.x, y: newLabel.y, color: newLabel.color, rotation: newLabel.rotation,
+      })
+      if (error) {
+        setNotice({ title: 'No se pudo guardar', message: `No se pudo guardar el texto en la base de datos: ${error.message}`, tone: 'danger' })
+        return
+      }
+      dispatch({ type: 'ADD_MAP_LABEL', eventId: event.id, label: newLabel })
+    } else {
+      const updates = { text: form.text, color: form.color, rotation: form.rotation }
+      const { error } = await supabase.from('map_labels').update(updates).eq('id', form.id)
+      if (error) {
+        setNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar el texto en la base de datos: ${error.message}`, tone: 'danger' })
+        return
+      }
+      dispatch({ type: 'UPDATE_MAP_LABEL', eventId: event.id, labelId: form.id, updates })
+    }
+    setEditingLabel(null)
+  }
+
+  async function handleDeleteLabel(labelId) {
+    const { error } = await supabase.from('map_labels').delete().eq('id', labelId)
+    if (error) {
+      setNotice({ title: 'No se pudo eliminar', message: `No se pudo eliminar el texto de la base de datos: ${error.message}`, tone: 'danger' })
+      return
+    }
+    dispatch({ type: 'DELETE_MAP_LABEL', eventId: event.id, labelId })
+    setEditingLabel(null)
+  }
+
   // Los stands de Sponsors no cuentan: no se reservan como los de expositores.
   const exhibitorStands = event.stands.filter(s => s.sector !== 'sponsor')
   const stats = {
@@ -168,12 +214,20 @@ export default function MapPage() {
                   <span className="hidden sm:inline">{editMode ? 'Editando' : 'Modo edición'}</span>
                 </button>
                 {editMode && (
-                  <button
-                    onClick={() => setEditingStand({ sector })}
-                    className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl bg-accent text-ink-950 hover:bg-accent-soft transition">
-                    <Plus size={15}/>
-                    <span className="hidden sm:inline">Nuevo</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setEditingStand({ sector })}
+                      className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl bg-accent text-ink-950 hover:bg-accent-soft transition">
+                      <Plus size={15}/>
+                      <span className="hidden sm:inline">Nuevo</span>
+                    </button>
+                    <button
+                      onClick={() => setEditingLabel({ sector })}
+                      className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl bg-ink-700 text-white hover:bg-ink-600 transition">
+                      <Type size={15}/>
+                      <span className="hidden sm:inline">Texto</span>
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -274,6 +328,15 @@ export default function MapPage() {
                   )
                 })}
               </div>
+              {(event.labels || []).filter(l => l.sector === sector).map(label => (
+                <MapLabel key={label.id}
+                  label={label}
+                  editMode={editMode}
+                  onClick={setEditingLabel}
+                  onDragEnd={handleLabelDragEnd}
+                  mapRef={mapRef}
+                />
+              ))}
             </div>
           </div>
           <div className="bg-ink-900 px-4 py-2 border-t border-ink-700 sm:hidden flex items-center justify-center gap-2 text-[10px] text-muted text-center">
@@ -344,6 +407,16 @@ export default function MapPage() {
           onSave={handleEditSave}
           onDelete={handleDelete}
           onClose={() => setEditingStand(null)}
+        />
+      )}
+
+      {/* Edit map label modal */}
+      {editingLabel !== null && (
+        <EditLabelModal
+          label={editingLabel}
+          onSave={handleSaveLabel}
+          onDelete={handleDeleteLabel}
+          onClose={() => setEditingLabel(null)}
         />
       )}
 
