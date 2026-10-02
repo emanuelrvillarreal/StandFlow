@@ -3,7 +3,6 @@ import { Plus, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Instagram, St
 import { STATUS_LABELS } from './adminHelpers'
 import { formatDateTime, formatBirthDate, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
-const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 const PAYMENT_TYPE_STYLES = {
   deposit: 'bg-amber-50 text-amber-700 border border-amber-200',
   full: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -14,6 +13,8 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
   if (!detail) return null
   const { reservation, event, stand, user, category } = detail
   const paymentType = reservation.paymentType || 'full'
+  const depositPct = stand?.price ? Math.round((reservation.amount / stand.price) * 100) : null
+  const paymentTypeLabel = paymentType === 'deposit' ? `Seña${depositPct ? ` (${depositPct}%)` : ''}` : 'Total (100%)'
   const isPartialDays = Array.isArray(reservation.days) && reservation.days.length < eventDays(event).length
 
   return (
@@ -50,7 +51,7 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
               <p className="text-gray-500">{STATUS_LABELS[reservation.status]}</p>
               {reservation.createdAt && <p className="text-[11px] text-gray-400 mt-1">Se anotó el {formatDateTime(reservation.createdAt)}</p>}
               <span className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${PAYMENT_TYPE_STYLES[paymentType]}`}>
-                {PAYMENT_TYPE_LABELS[paymentType]}
+                {paymentTypeLabel}
               </span>
             </div>
           </div>

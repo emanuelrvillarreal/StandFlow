@@ -3,7 +3,6 @@ import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCirc
 import { STATUS_LABELS, STATUS_STYLES, exportCSV } from './adminHelpers'
 import { formatDateTime, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
-const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
 const PAYMENT_TYPE_STYLES = {
   deposit: 'bg-amber-50 text-amber-700 border border-amber-200',
   full: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -263,6 +262,8 @@ export default function ReservationsTab({
             const user = getUser(r.userId)
             const cat = categories.find(c => c.id === r.categoryId)
             const paymentType = r.paymentType || 'full'
+            const depositPct = stand?.price ? Math.round((r.amount / stand.price) * 100) : null
+            const paymentTypeLabel = paymentType === 'deposit' ? `Seña${depositPct ? ` (${depositPct}%)` : ''}` : 'Total (100%)'
             const accent = CARD_ACCENT[r.status] || CARD_ACCENT.pending
             // Solo se marca si eligió menos días que el total del evento; si
             // tildó todos, es lo mismo que no decir nada.
@@ -325,7 +326,7 @@ export default function ReservationsTab({
                     <p className="text-[11px] text-gray-400 leading-none mb-1">Importe</p>
                     <p className="font-bold text-violet-600">${r.amount.toLocaleString('es-AR')}</p>
                     <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${PAYMENT_TYPE_STYLES[paymentType]}`}>
-                      {PAYMENT_TYPE_LABELS[paymentType]}
+                      {paymentTypeLabel}
                     </span>
                   </div>
                   <div>

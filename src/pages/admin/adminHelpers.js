@@ -10,8 +10,6 @@ export const STATUS_STYLES = {
   reserved: 'bg-blue-50 text-blue-700 border border-blue-200',
 }
 
-const PAYMENT_TYPE_LABELS = { deposit: 'Seña (50%)', full: 'Total (100%)' }
-
 export function exportCSV(reservations, events, users, stands, categories) {
   const header = ['Evento', 'Stand', 'Nombre Stand', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Categoría', 'Compartido', 'Comparte con', 'Instagram', 'Importe', 'Tipo de pago', 'Estado', 'Días', 'Fecha y hora de alta']
   const rows = reservations.map(r => {
@@ -19,11 +17,14 @@ export function exportCSV(reservations, events, users, stands, categories) {
     const st = ev?.stands.find(s => s.id === r.standId)
     const user = users.find(u => u.id === r.userId)
     const cat = categories.find(c => c.id === r.categoryId)
+    const paymentType = r.paymentType || 'full'
+    const depositPct = st?.price ? Math.round((r.amount / st.price) * 100) : null
+    const paymentTypeLabel = paymentType === 'deposit' ? `Seña${depositPct ? ` (${depositPct}%)` : ''}` : 'Total (100%)'
     return [
       ev?.name ?? '', st?.number ?? r.standId, r.standName,
       user?.name ?? '', user?.lastName ?? '', user?.email ?? '', user?.phone ?? '',
       cat?.name ?? '', r.shared ? 'Sí' : 'No', r.sharedWith ?? '', r.instagram ?? '',
-      r.amount, PAYMENT_TYPE_LABELS[r.paymentType || 'full'], STATUS_LABELS[r.status] ?? r.status,
+      r.amount, paymentTypeLabel, STATUS_LABELS[r.status] ?? r.status,
       formatDaysList(r.days) || 'Todos',
       formatDateTime(r.createdAt),
     ]
@@ -73,6 +74,9 @@ export function toEventRow(event) {
     payment_instructions: event.paymentInstructions,
     contact_method: event.contactMethod || 'whatsapp',
     organizer_email: event.organizerEmail || null,
+    deposit_percent: Number(event.depositPercent) || 50,
+    reservation_note: event.reservationNote || null,
+    requests_paused: !!event.requestsPaused,
   }
 }
 

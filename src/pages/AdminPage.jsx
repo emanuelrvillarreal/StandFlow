@@ -28,7 +28,7 @@ import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
 
 const EMPTY_EVENT_FORM = {
-  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', contactMethod: 'whatsapp', organizerEmail: '', paymentInstructions: '',
+  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', contactMethod: 'whatsapp', organizerEmail: '', depositPercent: 50, reservationNote: '', paymentInstructions: '',
   posterImage: null, mapImageSalon: null, mapImageGaleria: null, mapImageSponsor: null, copyFrom: 'none',
   sponsorsEnabled: false, sponsorCode: '',
 }
@@ -299,6 +299,8 @@ export default function AdminPage() {
     // monto viejo (la mitad) archivado, y Finanzas cuenta de menos la plata
     // real que entró.
     const stand = getStand(reservation.eventId, reservation.standId)
+    const ev = events.find(e => e.id === reservation.eventId)
+    const depositPercent = Number(ev?.depositPercent) || 50
     const updates = { status: newStatus, paid_at: paidAt }
     // Si venía de "Seña Paga" y ahora se cobró el resto, esa fecha se guarda
     // aparte (no pisa la fecha de la seña): así Finanzas puede mostrar los dos
@@ -309,7 +311,7 @@ export default function AdminPage() {
       : null
     if (stand?.price) {
       if (newStatus === 'paid') { updates.amount = stand.price; updates.payment_type = 'full' }
-      else if (newStatus === 'deposit_paid') { updates.amount = stand.price / 2; updates.payment_type = 'deposit' }
+      else if (newStatus === 'deposit_paid') { updates.amount = Math.round(stand.price * depositPercent / 100); updates.payment_type = 'deposit' }
     }
 
     const { error: reservationError } = await supabase
@@ -485,6 +487,8 @@ export default function AdminPage() {
       whatsapp: event.whatsapp || '',
       contactMethod: event.contactMethod || 'whatsapp',
       organizerEmail: event.organizerEmail || '',
+      depositPercent: Number(event.depositPercent) || 50,
+      reservationNote: event.reservationNote || '',
       paymentInstructions: event.paymentInstructions || '',
       posterImage: event.posterImage || null,
       mapImageSalon: event.mapImage?.salon || null,
@@ -545,6 +549,8 @@ export default function AdminPage() {
       whatsapp: eventForm.whatsapp || sourceEvent?.whatsapp || state.settings?.whatsappNumber || '',
       contactMethod: eventForm.contactMethod || sourceEvent?.contactMethod || 'whatsapp',
       organizerEmail: eventForm.organizerEmail || sourceEvent?.organizerEmail || '',
+      depositPercent: Number(eventForm.depositPercent) || 50,
+      reservationNote: eventForm.reservationNote || '',
       paymentInstructions: eventForm.paymentInstructions || sourceEvent?.paymentInstructions || '',
       stands: sourceEvent
         ? sourceEvent.stands.map(stand => ({
@@ -602,6 +608,8 @@ export default function AdminPage() {
       whatsapp: eventForm.whatsapp,
       contactMethod: eventForm.contactMethod || 'whatsapp',
       organizerEmail: eventForm.organizerEmail,
+      depositPercent: Number(eventForm.depositPercent) || 50,
+      reservationNote: eventForm.reservationNote,
       paymentInstructions: eventForm.paymentInstructions,
       posterImage: eventForm.posterImage,
       mapImage: {
@@ -720,9 +728,26 @@ export default function AdminPage() {
 
   function handleSaveEvent() {
     if (!eventForm.name || !eventForm.date) return
+    const pct = Number(eventForm.depositPercent)
+    if (!pct || pct < 1 || pct > 99) {
+      showNotice({ title: 'Revisá el formulario', message: 'El porcentaje de seña tiene que ser un número entre 1 y 99.', tone: 'danger' })
+      return
+    }
     const spError = sponsorFormError()
     if (spError) { showNotice({ title: 'Revisá el formulario', message: spError, tone: 'danger' }); return }
     return editingEvent ? handleUpdateEvent() : handleCreateEvent()
+  }
+
+  // Frena solo las solicitudes nuevas (si entraron muchas de golpe); las que
+  // ya existen el admin las sigue pudiendo aprobar/rechazar normalmente.
+  async function handleToggleRequestsPaused(event) {
+    const paused = !event.requestsPaused
+    const { error } = await supabase.from('events').update({ requests_paused: paused }).eq('id', event.id)
+    if (error) {
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo ${paused ? 'pausar' : 'reanudar'} las solicitudes: ${error.message}`, tone: 'danger' })
+      return
+    }
+    dispatch({ type: 'UPDATE_EVENT', event: { ...event, requestsPaused: paused } })
   }
 
   function requestDeleteEvent(event) {
@@ -1199,6 +1224,7 @@ export default function AdminPage() {
             onOpenCreateEvent={openCreateEventModal}
             onEditEvent={openEditEventModal}
             onDeleteEvent={requestDeleteEvent}
+            onToggleRequestsPaused={handleToggleRequestsPaused}
             onOpenAttendance={(ev) => { setAttendanceEventId(ev.id); setTab('attendance') }}
           />
         )}

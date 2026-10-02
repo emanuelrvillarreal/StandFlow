@@ -181,7 +181,7 @@ export default function EventsPage() {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((ev, i) => currentUser ? (() => {
             const access = getEventAccess({ event: ev, user: currentUser, requests: state.eventRequests, reservations: state.reservations })
-            const canSeeAvailability = isAdmin || access.status === 'approved'
+            const canSeeAvailability = isAdmin || access.status === 'open' || access.status === 'approved'
             return (
             <div key={ev.id} style={{ '--i': i + 1 }}
               className="anim-rise card-lift group relative bg-ink-800 rounded-2xl border border-ink-600 overflow-hidden hover:border-accent/50">
@@ -236,10 +236,13 @@ export default function EventsPage() {
                   <h3 className="font-display font-bold text-white text-lg leading-tight mb-2">{ev.name}</h3>
                   {ev.requiresApproval && (() => {
                     const chip = isAdmin
-                      ? { text: 'Con confirmación', cls: 'bg-accent/10 text-accent-soft border-accent/30' }
+                      ? (ev.requestsPaused
+                        ? { text: 'Con confirmación · solicitudes pausadas', cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30' }
+                        : { text: 'Con confirmación', cls: 'bg-accent/10 text-accent-soft border-accent/30' })
                       : access.status === 'approved' ? { text: 'Aprobado', cls: 'bg-accent/10 text-accent-soft border-accent/30' }
                       : access.status === 'pending' ? { text: 'Solicitud en revisión', cls: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30' }
                       : access.status === 'rejected' ? { text: 'Solicitud no aprobada', cls: 'bg-red-500/10 text-red-300 border-red-500/30' }
+                      : ev.requestsPaused ? { text: 'Solicitudes pausadas por ahora', cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30' }
                       : { text: 'Con confirmación · solicitá participar', cls: 'bg-violet-500/10 text-violet-200 border-violet-400/30' }
                     return (
                       <span className={`inline-block mb-2 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${chip.cls}`}>{chip.text}</span>

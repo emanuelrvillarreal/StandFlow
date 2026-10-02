@@ -33,15 +33,17 @@ export default function FinancesTab({
         // cobros separados (cada uno con su fecha real), en vez de uno solo
         // que se actualiza en silencio y pierde la fecha del segundo cobro.
         if (r.status === 'paid' && r.balancePaidAt && stand?.price) {
+          const depositPercent = Number(ev?.depositPercent) || 50
+          const depositAmount = Math.round(stand.price * depositPercent / 100)
           return [
             {
               id: `res-${r.id}-sena`, date: r.paidAt || r.createdAt,
-              description: desc, amount: stand.price / 2,
+              description: desc, amount: depositAmount,
               kind: 'income', source: 'auto', paymentType: 'deposit',
             },
             {
               id: `res-${r.id}-saldo`, date: r.balancePaidAt,
-              description: desc, amount: stand.price / 2,
+              description: desc, amount: stand.price - depositAmount,
               kind: 'income', source: 'auto', paymentType: 'balance',
             },
           ]

@@ -19,13 +19,13 @@ function dayLabel(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-// Cómo pagó un expositor: completo, la mitad (seña) o nada todavía.
-function paymentInfo(r, stand) {
-  const total = Number(stand?.price ?? (r.paymentType === 'deposit' ? r.amount * 2 : r.amount)) || 0
+// Cómo pagó un expositor: completo, la seña o nada todavía.
+function paymentInfo(r, stand, depositPercent = 50) {
+  const total = Number(stand?.price ?? (r.paymentType === 'deposit' ? r.amount / (depositPercent / 100) : r.amount)) || 0
   if (r.status === 'paid') return { key: 'paid', label: 'Pagó completo', paid: total, total, debt: 0 }
   if (r.status === 'deposit_paid') {
     const paid = Number(r.amount) || 0
-    return { key: 'deposit', label: 'Pagó la mitad (seña)', paid, total, debt: Math.max(0, total - paid) }
+    return { key: 'deposit', label: 'Pagó la seña', paid, total, debt: Math.max(0, total - paid) }
   }
   if (r.status === 'reserved') return { key: 'reserved', label: 'Reservado', paid: 0, total, debt: total }
   return {
@@ -108,7 +108,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
           key: `r-${r.id}`, kind: 'exhibitor', reservationId: r.id,
           name: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim() || '(sin nombre)',
           sub: [u?.businessName ? `${u?.name || ''} ${u?.lastName || ''}`.trim() : '', u?.phone].filter(Boolean).join(' · '),
-          stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand),
+          stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand, Number(ev.depositPercent) || 50),
           shared: !!r.shared, sharedWith: (r.sharedWith || '').trim(), instagram: (r.instagram || '').trim(),
         })
       })

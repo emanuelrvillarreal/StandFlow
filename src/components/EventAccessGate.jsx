@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShieldCheck, Clock, XCircle, MessageCircle, Mail, Send } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, Clock, XCircle, MessageCircle, Mail, Send, PauseCircle } from 'lucide-react'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
 import { formatEventDate } from '../lib/formatEventDate'
@@ -73,7 +73,23 @@ export default function EventAccessGate({ event, access }) {
           )}
 
           <div className="p-6 text-center space-y-4">
-            {access.status === 'none' && (
+            {access.status === 'none' && event.requestsPaused && (
+              <>
+                <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                  <PauseCircle className="text-amber-300" size={26} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-display font-bold text-white mb-1">Solicitudes pausadas</h2>
+                  <p className="text-sm text-muted">
+                    Por el momento el organizador no está recibiendo solicitudes nuevas para este evento.
+                    Volvé a intentarlo más tarde.
+                  </p>
+                  <p className="text-xs text-muted mt-2">{formatEventDate(event)} · {event.location}</p>
+                </div>
+              </>
+            )}
+
+            {access.status === 'none' && !event.requestsPaused && (
               <>
                 <div className="w-14 h-14 mx-auto rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
                   <ShieldCheck className="text-accent" size={26} />

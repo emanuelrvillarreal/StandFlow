@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
-import { ArrowLeft, MessageCircle, Calendar, Tag, Store, Instagram, Pencil } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Mail, Calendar, Tag, Store, Instagram, Pencil } from 'lucide-react'
 import { formatEventDate } from '../lib/formatEventDate'
 import { formatDateTime } from '../lib/formatDateTime'
 
@@ -26,14 +26,8 @@ export default function MyReservationsPage() {
   }
   function getCat(catId) { return categories.find(c => c.id === catId) }
 
-  function openWhatsApp(r) {
-    const ev = getEvent(r.eventId)
-    const stand = getStand(r.eventId, r.standId)
-    if (!ev) return
+  function buildMessage(r, ev, stand) {
     const cat = getCat(r.categoryId)
-    // El número de WhatsApp es del evento; la plantilla sigue siendo global (Admin).
-    const whatsappNumber = String(ev.whatsapp || state.settings?.whatsappNumber || '').replace(/\D/g, '')
-
     let msg = state.settings?.whatsappTemplate || (
       `¡Hola! Quiero confirmar mi reserva:\n\n` +
       `📍 Evento: {evento}\n` +
@@ -56,7 +50,9 @@ export default function MyReservationsPage() {
       '{stand_numero}': stand?.number || r.standId,
       '{stand_nombre}': r.standName,
       '{categoria}': cat?.name || '-',
-      '{importe}': `$${r.amount.toLocaleString('es-AR')}`,
+      '{importe}': r.paymentType === 'deposit'
+        ? `$${r.amount.toLocaleString('es-AR')} (seña${stand?.price ? `, quedan $${(stand.price - r.amount).toLocaleString('es-AR')} de saldo` : ''})`
+        : `$${r.amount.toLocaleString('es-AR')} (total)`,
       '{usuario_nombre}': `${currentUser.name} ${currentUser.lastName}`,
       '{usuario_email}': currentUser.email,
       '{usuario_telefono}': currentUser.phone,
@@ -68,7 +64,24 @@ export default function MyReservationsPage() {
       msg = msg.replaceAll(tag, val)
     })
 
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank')
+    return msg
+  }
+
+  function openWhatsApp(r) {
+    const ev = getEvent(r.eventId)
+    const stand = getStand(r.eventId, r.standId)
+    if (!ev) return
+    // El número de WhatsApp es del evento; la plantilla sigue siendo global (Admin).
+    const whatsappNumber = String(ev.whatsapp || state.settings?.whatsappNumber || '').replace(/\D/g, '')
+    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(buildMessage(r, ev, stand))}`, '_blank')
+  }
+
+  function openMail(r) {
+    const ev = getEvent(r.eventId)
+    const stand = getStand(r.eventId, r.standId)
+    if (!ev) return
+    const subject = `Comprobante de reserva - ${ev.name} - Stand ${stand?.number || r.standId}`
+    window.location.href = `mailto:${ev.organizerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildMessage(r, ev, stand))}`
   }
 
   return (
@@ -170,12 +183,20 @@ export default function MyReservationsPage() {
                   {r.status === 'pending' && (
                     <div className="px-5 pb-5 space-y-3">
                       <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs px-3 py-2.5 rounded-xl">
-                        {ev?.paymentInstructions || 'Enviá el comprobante de pago por WhatsApp para confirmar tu reserva.'}
+                        {ev?.paymentInstructions || 'Enviá el comprobante de pago para confirmar tu reserva.'}
                       </div>
-                      <button onClick={() => openWhatsApp(r)}
-                        className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl transition text-sm">
-                        <MessageCircle size={16}/> Enviar comprobante por WhatsApp
-                      </button>
+                      {(ev?.contactMethod || 'whatsapp') !== 'email' && (
+                        <button onClick={() => openWhatsApp(r)}
+                          className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+                          <MessageCircle size={16}/> Enviar comprobante por WhatsApp
+                        </button>
+                      )}
+                      {ev?.contactMethod !== 'whatsapp' && ev?.organizerEmail && (
+                        <button onClick={() => openMail(r)}
+                          className="w-full flex items-center justify-center gap-2 bg-ink-700 hover:bg-ink-600 border border-ink-600 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+                          <Mail size={16}/> Enviar comprobante por mail
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

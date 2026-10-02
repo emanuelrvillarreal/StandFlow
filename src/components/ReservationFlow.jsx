@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
-import { X, ArrowLeft, CheckCircle, MessageCircle, CalendarDays } from 'lucide-react'
+import { X, ArrowLeft, CheckCircle, MessageCircle, Mail, CalendarDays } from 'lucide-react'
 import { eventDays, formatShortDay } from '../lib/formatDateTime'
 
 function toReservationRow(reservation) {
@@ -37,7 +37,8 @@ export default function ReservationFlow({ stand, event, onClose }) {
   const [submitting, setSubmitting] = useState(false)
   const [reservation, setReservation] = useState(null)
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
-  const calculatedAmount = form.paymentType === 'deposit' ? stand.price / 2 : stand.price
+  const depositPercent = Number(event.depositPercent) || 50
+  const calculatedAmount = form.paymentType === 'deposit' ? Math.round(stand.price * depositPercent / 100) : stand.price
 
   function toggleDay(day) {
     setForm(prev => ({
@@ -140,12 +141,8 @@ export default function ReservationFlow({ stand, event, onClose }) {
     setSubmitting(false)
   }
 
-  function buildWhatsApp() {
+  function buildMessage() {
     const cat = categories.find(c => c.id === form.categoryId)
-    // El número de WhatsApp es del evento (cada evento puede tener uno distinto);
-    // la plantilla del mensaje sigue siendo la configuración global de Admin.
-    const whatsappNumber = String(event.whatsapp || state.settings?.whatsappNumber || '').replace(/\D/g, '')
-
     let msg = state.settings?.whatsappTemplate || (
       `¡Hola! Quiero confirmar mi reserva:\n\n` +
       `📍 Evento: {evento}\n` +
@@ -168,7 +165,9 @@ export default function ReservationFlow({ stand, event, onClose }) {
       '{stand_numero}': stand.number,
       '{stand_nombre}': form.standName,
       '{categoria}': cat?.name || '-',
-      '{importe}': `$${stand.price.toLocaleString('es-AR')}`,
+      '{importe}': reservation?.paymentType === 'deposit'
+        ? `$${reservation.amount.toLocaleString('es-AR')} (seña del ${depositPercent}%, quedan $${(stand.price - reservation.amount).toLocaleString('es-AR')} de saldo)`
+        : `$${(reservation?.amount ?? stand.price).toLocaleString('es-AR')} (total)`,
       '{usuario_nombre}': `${currentUser.name} ${currentUser.lastName}`,
       '{usuario_email}': currentUser.email,
       '{usuario_telefono}': currentUser.phone,
@@ -180,7 +179,19 @@ export default function ReservationFlow({ stand, event, onClose }) {
       msg = msg.replaceAll(tag, val)
     })
 
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank')
+    return msg
+  }
+
+  function buildWhatsApp() {
+    // El número de WhatsApp es del evento (cada evento puede tener uno distinto);
+    // la plantilla del mensaje sigue siendo la configuración global de Admin.
+    const whatsappNumber = String(event.whatsapp || state.settings?.whatsappNumber || '').replace(/\D/g, '')
+    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(buildMessage())}`, '_blank')
+  }
+
+  function buildMail() {
+    const subject = `Comprobante de reserva - ${event.name} - Stand ${stand.number}`
+    window.location.href = `mailto:${event.organizerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildMessage())}`
   }
 
   if (step === 'confirm') {
@@ -218,9 +229,15 @@ export default function ReservationFlow({ stand, event, onClose }) {
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-muted">Importe</span>
-              <span className="font-bold text-accent-soft">${stand.price.toLocaleString('es-AR')}</span>
+              <span className="text-muted">{reservation.paymentType === 'deposit' ? `Seña (${depositPercent}%)` : 'Importe'}</span>
+              <span className="font-bold text-accent-soft">${reservation.amount.toLocaleString('es-AR')}</span>
             </div>
+            {reservation.paymentType === 'deposit' && (
+              <div className="flex justify-between">
+                <span className="text-muted">Saldo restante</span>
+                <span className="font-medium text-muted">${(stand.price - reservation.amount).toLocaleString('es-AR')}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted">Estado</span>
               <span className="font-medium text-yellow-300">Pendiente de pago</span>
@@ -235,10 +252,18 @@ export default function ReservationFlow({ stand, event, onClose }) {
           </div>
 
           <div className="px-6 py-4 space-y-3 border-t border-ink-600 bg-ink-800 flex-shrink-0">
-            <button onClick={buildWhatsApp}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition">
-              <MessageCircle size={18}/> Confirmar por WhatsApp
-            </button>
+            {event.contactMethod !== 'email' && (
+              <button onClick={buildWhatsApp}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition">
+                <MessageCircle size={18}/> Confirmar por WhatsApp
+              </button>
+            )}
+            {event.contactMethod !== 'whatsapp' && event.organizerEmail && (
+              <button onClick={buildMail}
+                className="w-full bg-ink-700 hover:bg-ink-600 border border-ink-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition">
+                <Mail size={18}/> Confirmar por mail
+              </button>
+            )}
             <button onClick={onClose}
               className="w-full bg-ink-700 hover:bg-ink-600 text-white font-semibold py-3 rounded-xl transition">
               Cerrar
@@ -262,6 +287,11 @@ export default function ReservationFlow({ stand, event, onClose }) {
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          {event.reservationNote && (
+            <div className="bg-accent/10 border border-accent/30 text-accent-soft px-4 py-3 rounded-xl text-sm whitespace-pre-line">
+              {event.reservationNote}
+            </div>
+          )}
           {error && <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl text-sm">{error}</div>}
 
           <div>
@@ -346,7 +376,7 @@ export default function ReservationFlow({ stand, event, onClose }) {
               <div className="flex gap-3">
                 {[
                   { id: 'full', label: 'Totalidad (100%)' },
-                  { id: 'deposit', label: 'Seña (50%)' }
+                  { id: 'deposit', label: `Seña (${depositPercent}%)` }
                 ].map(v => (
                   <label key={v.id} className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded-xl cursor-pointer transition ${form.paymentType===v.id?'border-accent bg-accent/15 text-accent-soft':'border-ink-600 bg-ink-800 text-muted hover:bg-ink-700'}`}>
                     <input type="radio" name="paymentType" value={v.id} checked={form.paymentType===v.id} onChange={() => setForm({...form, paymentType:v.id})} className="sr-only"/>

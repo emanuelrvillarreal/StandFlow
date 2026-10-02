@@ -635,6 +635,9 @@ export function AppProvider({ children }) {
         paymentInstructions: ev.payment_instructions,
         contactMethod: ev.contact_method || 'whatsapp',
         organizerEmail: ev.organizer_email || '',
+        depositPercent: Number(ev.deposit_percent) || 50,
+        reservationNote: ev.reservation_note || '',
+        requestsPaused: !!ev.requests_paused,
         sponsors: (() => {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
           return { enabled: !!cfg?.enabled, code: cfg?.code || '', image: cfg?.image || null }

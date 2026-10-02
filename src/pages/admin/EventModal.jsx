@@ -310,6 +310,26 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
                 className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition text-sm" />
             </div>
 
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Porcentaje de seña</label>
+              <p className="text-[10px] text-gray-400 mb-2 -mt-1">Cuánto paga el expositor si elige "Seña" al reservar (el resto queda pendiente).</p>
+              <div className="relative w-32">
+                <input type="number" min="1" max="99" value={eventForm.depositPercent}
+                  onChange={e => setEventForm({ ...eventForm, depositPercent: e.target.value.replace(/[^0-9]/g, '') })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition pr-9" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Observación al reservar</label>
+              <p className="text-[10px] text-gray-400 mb-2 -mt-1">Se muestra al expositor cuando está por reservar un stand de este evento.</p>
+              <textarea value={eventForm.reservationNote} onChange={e => setEventForm({ ...eventForm, reservationNote: e.target.value })}
+                rows={3}
+                placeholder="Ej: El armado del stand es el día anterior de 14 a 18hs."
+                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition text-sm" />
+            </div>
+
             {!isEditing && (
               <div className="bg-violet-50 rounded-2xl p-4 border border-violet-100">
                 <label className="flex items-center gap-2 text-xs font-bold text-violet-700 uppercase mb-3">

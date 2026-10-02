@@ -1,7 +1,7 @@
-import { Plus, Calendar, MapPin, Clock, Edit2, Map, Trash2, ClipboardCheck } from 'lucide-react'
+import { Plus, Calendar, MapPin, Clock, Edit2, Map, Trash2, ClipboardCheck, Pause, Play } from 'lucide-react'
 import { formatEventDate } from '../../lib/formatEventDate'
 
-export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditEvent, onDeleteEvent, onOpenAttendance = () => {} }) {
+export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditEvent, onDeleteEvent, onOpenAttendance = () => {}, onToggleRequestsPaused = () => {} }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -31,6 +31,11 @@ export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditE
                   <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${ev.requiresApproval ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
                     {ev.requiresApproval ? 'Con confirmación' : 'Libre'}
                   </span>
+                  {ev.requiresApproval && ev.requestsPaused && (
+                    <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      Solicitudes pausadas
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
                   <span className="flex items-center gap-1"><MapPin size={12} /> {ev.location}</span>
@@ -39,6 +44,14 @@ export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditE
               </div>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
+              {ev.requiresApproval && (
+                <button onClick={() => onToggleRequestsPaused(ev)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-xs font-semibold ${ev.requestsPaused ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}
+                  title={ev.requestsPaused ? 'Reanudar solicitudes nuevas' : 'Pausar solicitudes nuevas'}>
+                  {ev.requestsPaused ? <Play size={16} /> : <Pause size={16} />}
+                  {ev.requestsPaused ? 'Reanudar' : 'Pausar'}
+                </button>
+              )}
               <button onClick={() => onOpenAttendance(ev)}
                 className="flex items-center gap-1.5 px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition text-xs font-semibold" title="Asistencia y pagos">
                 <ClipboardCheck size={16} /> Asistencia
