@@ -255,23 +255,30 @@ export default function MapPage() {
                     : 'Este sector todavía no tiene mapa.'}
                 </div>
               )}
-              {filteredStands.map(stand => {
-                const cat = categories.find(c => c.id === stand.categoryId)
-                return (
-                  <StandDot key={stand.id}
-                    stand={stand}
-                    category={cat}
-                    editMode={editMode}
-                    onClick={handleStandClick}
-                    onDragEnd={handleDragEnd}
-                    mapRef={mapRef}
-                  />
-                )
-              })}
+              {/* En celular los puntos quedan muy pegados y se superponen; los
+                  expositores eligen el stand desde la lista de abajo en vez
+                  (ven igual la imagen del mapa como referencia). El admin los
+                  sigue viendo siempre, los necesita para reposicionarlos. */}
+              <div className={isAdmin ? 'contents' : 'hidden sm:contents'}>
+                {filteredStands.map(stand => {
+                  const cat = categories.find(c => c.id === stand.categoryId)
+                  return (
+                    <StandDot key={stand.id}
+                      stand={stand}
+                      category={cat}
+                      editMode={editMode}
+                      onClick={handleStandClick}
+                      onDragEnd={handleDragEnd}
+                      mapRef={mapRef}
+                    />
+                  )
+                })}
+              </div>
             </div>
           </div>
-          <div className="bg-ink-900 px-4 py-2 border-t border-ink-700 md:hidden flex items-center justify-center gap-2 text-[10px] text-muted">
-            <div className="flex items-center gap-1"><span className="w-2 h-2 bg-ink-500 rounded-full"/> Deslizá para ver el mapa completo</div>
+          <div className="bg-ink-900 px-4 py-2 border-t border-ink-700 sm:hidden flex items-center justify-center gap-2 text-[10px] text-muted text-center">
+            <span className="w-2 h-2 bg-ink-500 rounded-full flex-shrink-0"/>
+            {isAdmin ? 'Deslizá para ver el mapa completo' : 'Este es el mapa de referencia: elegí tu stand en la lista de abajo'}
           </div>
         </div>
 
