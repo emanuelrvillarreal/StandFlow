@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, Check, X, RotateCcw, Trash2, Eye, Download, ChevronLeft, ChevronRight, ChevronDown, Instagram, Store, Phone, Mail, MessageSquare, ShieldCheck, ScrollText, Loader2 } from 'lucide-react'
 import { formatDateTime, formatBirthDate } from '../../lib/formatDateTime'
 import { exportRequestsCSV } from './adminHelpers'
@@ -71,7 +72,10 @@ function Field({ label, value }) {
 
 function RequestDetailModal({ request, user, event, onClose }) {
   if (!request) return null
-  return (
+  // Portal a document.body: el <main> del panel tiene su propio z-index y
+  // "atrapa" todo lo que esta adentro por debajo del sidebar (que tiene un
+  // z-index mas alto), sin importar el z-index que le pongamos al modal acá.
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-6 space-y-4">
@@ -108,7 +112,8 @@ function RequestDetailModal({ request, user, event, onClose }) {
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
