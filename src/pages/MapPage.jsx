@@ -14,7 +14,7 @@ import { ArrowLeft, Edit3, Plus, Layers, Info, Type } from 'lucide-react'
 import NoticeDialog from '../components/NoticeDialog'
 
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
-const STATUS_COLORS = { available:'#22c55e', pending:'#eab308', reserved:'#ef4444', blocked:'#9ca3af' }
+const STATUS_COLORS = { available:'#22c55e', pending:'#eab308', reserved:'#9ca3af', blocked:'#6b7280' }
 
 function toStandRow(stand, eventId) {
   return {
@@ -349,7 +349,11 @@ export default function MapPage() {
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {filteredStands.map(stand => {
             const cat = categories.find(c => c.id === stand.categoryId)
-            const color = stand.isSponsor && stand.status === 'available' ? '#f59e0b' : cat ? cat.color : STATUS_COLORS[stand.status]
+            const color = stand.isSponsor && stand.status === 'available'
+              ? '#f59e0b'
+              : stand.status !== 'available'
+                ? STATUS_COLORS[stand.status]
+                : (cat ? cat.color : STATUS_COLORS.available)
             return (
               <button key={stand.id}
                 onClick={() => handleStandClick(stand)}

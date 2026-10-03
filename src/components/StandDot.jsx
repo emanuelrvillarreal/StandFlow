@@ -3,8 +3,8 @@ import { useRef } from 'react'
 const STATUS_COLORS = {
   available: '#22c55e',
   pending:   '#eab308',
-  reserved:  '#ef4444',
-  blocked:   '#9ca3af',
+  reserved:  '#9ca3af',
+  blocked:   '#6b7280',
 }
 
 export default function StandDot({ stand, category, editMode, onClick, onDragEnd, mapRef }) {
@@ -13,7 +13,14 @@ export default function StandDot({ stand, category, editMode, onClick, onDragEnd
 
   // Los stands reservados para Sponsors libres se ven en dorado: no son para expositores.
   const sponsorFree = stand.isSponsor && stand.status === 'available'
-  const color = sponsorFree ? '#f59e0b' : category ? category.color : STATUS_COLORS[stand.status]
+  // El color de categoría solo sirve mientras el stand está disponible (para
+  // elegir por rubro); una vez tomado, tiene que verse gris sí o sí, aunque
+  // ya tenga una categoría asignada (si no, parecía libre por el color).
+  const color = sponsorFree
+    ? '#f59e0b'
+    : stand.status !== 'available'
+      ? STATUS_COLORS[stand.status]
+      : (category ? category.color : STATUS_COLORS.available)
   const size = 22
 
   function handleMouseDown(e) {
