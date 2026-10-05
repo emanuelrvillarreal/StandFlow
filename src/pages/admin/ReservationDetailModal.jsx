@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Instagram, Store, X } from 'lucide-react'
+import { Plus, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Instagram, Store, X } from 'lucide-react'
 import { STATUS_LABELS } from './adminHelpers'
 import { formatDateTime, formatBirthDate, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
@@ -8,7 +8,7 @@ const PAYMENT_TYPE_STYLES = {
   full: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
 }
 
-export default function ReservationDetailModal({ detail, onClose, onStatusChange, onDeleteReservation, onNotifyPaid }) {
+export default function ReservationDetailModal({ detail, onClose, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {} }) {
   const [photoPreview, setPhotoPreview] = useState(false)
   if (!detail) return null
   const { reservation, event, stand, user, category } = detail
@@ -146,6 +146,12 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
             <button onClick={() => onNotifyPaid(reservation, event, stand, user)}
               className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-xl text-sm font-medium transition">
               <MessageCircle size={14} /> Avisar cupo completo
+            </button>
+          )}
+          {(reservation.status === 'deposit_paid' || reservation.status === 'paid') && (
+            <button onClick={() => onResendPaymentEmail(reservation)}
+              className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-xl text-sm font-medium transition">
+              <Mail size={14} /> Reenviar mail de pago
             </button>
           )}
           <button onClick={onClose}

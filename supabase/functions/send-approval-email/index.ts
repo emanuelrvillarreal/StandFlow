@@ -1,7 +1,7 @@
-// Edge Function: manda el mail de "solicitud aprobada" (al aprobar, o al
-// reenviar desde el botón de Solicitudes). Requiere el secret RESEND_API_KEY
-// configurado en Supabase (Edge Functions > Manage secrets). Cada envío (o
-// intento fallido) queda registrado en public.notification_log.
+// Edge Function: manda mails transaccionales del panel (solicitud aprobada,
+// reenvío, y ahora también aviso de seña/pago recibido). Requiere el secret
+// RESEND_API_KEY configurado en Supabase (Edge Functions > Manage secrets).
+// Cada envío (o intento fallido) queda registrado en public.notification_log.
 //
 // Para desplegarla sin instalar la CLI: Supabase Dashboard > Edge Functions >
 // editar la función ya desplegada (nombre real en el proyecto: "rapid-processor")
@@ -17,6 +17,20 @@ const corsHeaders = {
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+function wrapEmail(title, bodyHtml) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #1a1a2b;">
+      <div style="background: #0b0b16; padding: 24px; border-radius: 16px 16px 0 0; text-align: center;">
+        <span style="color: #2ee6d6; font-weight: 700; font-size: 20px; letter-spacing: 1px;">STANDS FLOW</span>
+      </div>
+      <div style="padding: 28px; border: 1px solid #eee; border-top: none; border-radius: 0 0 16px 16px;">
+        <h2 style="margin-top:0;">${title}</h2>
+        ${bodyHtml}
+      </div>
+    </div>
+  `
 }
 
 serve(async (req) => {
@@ -40,7 +54,13 @@ serve(async (req) => {
     const { data: profile } = await supabaseClient.from('profiles').select('role_id').eq('id', user.id).single()
     if (profile?.role_id !== 1) return jsonResponse({ error: 'Solo un admin puede enviar esta notificación' }, 403)
 
-    const { to, businessName, userName, eventName, mapUrl, eventRequestId, eventId, userId } = await req.json()
+    const body = await req.json()
+    const {
+      to, businessName, userName, eventName, mapUrl,
+      eventRequestId, eventId, userId,
+      kind = 'approval', // 'approval' | 'payment'
+      paymentType, amount, standNumber, standName, remaining,
+    } = body
     if (!to || !eventName) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
 
     async function logAttempt(status, errorMessage = null) {
@@ -49,29 +69,44 @@ serve(async (req) => {
         event_id: eventId || null,
         user_id: userId || null,
         to_email: to,
-        kind: 'approval',
+        kind,
         status,
         error_message: errorMessage,
         sent_by: user.id,
       })
     }
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #1a1a2b;">
-        <div style="background: #0b0b16; padding: 24px; border-radius: 16px 16px 0 0; text-align: center;">
-          <span style="color: #2ee6d6; font-weight: 700; font-size: 20px; letter-spacing: 1px;">STANDS FLOW</span>
-        </div>
-        <div style="padding: 28px; border: 1px solid #eee; border-top: none; border-radius: 0 0 16px 16px;">
-          <h2 style="margin-top:0;">¡Tu solicitud fue aprobada!</h2>
+    let subject, html
+    if (kind === 'payment') {
+      const isDeposit = paymentType === 'deposit'
+      const money = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
+      subject = isDeposit ? `Recibimos tu seña - ${eventName}` : `Recibimos tu pago - ${eventName}`
+      html = wrapEmail(
+        isDeposit ? '¡Llegó tu seña!' : '¡Llegó tu pago!',
+        `
+          <p>Hola${userName ? ` ${userName}` : ''},</p>
+          <p>Te confirmamos que registramos ${isDeposit ? 'la seña' : 'el pago total'} de tu stand${standNumber ? ` <strong>${standNumber}</strong>` : ''}${standName ? ` (${standName})` : ''} en <strong>${eventName}</strong>.</p>
+          <p style="background:#f4f4f7; border-radius:12px; padding:14px 18px; margin:20px 0;">
+            <strong>${isDeposit ? 'Seña recibida' : 'Total recibido'}:</strong> ${money(amount)}
+            ${isDeposit && remaining ? `<br/><strong>Saldo pendiente:</strong> ${money(remaining)}` : ''}
+          </p>
+          <p style="color:#888; font-size:13px;">Si tenés alguna duda, contactá a la organización.</p>
+        `,
+      )
+    } else {
+      subject = `Aprobamos tu solicitud para ${eventName}`
+      html = wrapEmail(
+        '¡Tu solicitud fue aprobada!',
+        `
           <p>Hola${userName ? ` ${userName}` : ''},</p>
           <p>Tu solicitud para participar en <strong>${eventName}</strong> fue aprobada${businessName ? ` para <strong>${businessName}</strong>` : ''}. Ya podés ingresar a elegir tu stand.</p>
           ${mapUrl ? `<div style="text-align:center; margin: 28px 0;">
             <a href="${mapUrl}" style="background:#2ee6d6; color:#0b0b16; padding: 12px 28px; border-radius: 999px; text-decoration:none; font-weight:700; display:inline-block;">Elegir mi stand</a>
           </div>` : ''}
           <p style="color:#888; font-size:13px;">Si tenés algún problema para ingresar, contactá a la organización.</p>
-        </div>
-      </div>
-    `
+        `,
+      )
+    }
 
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -82,7 +117,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: 'Stands Flow <notificaciones@stands.deckaria.ar>',
         to: [to],
-        subject: `Aprobamos tu solicitud para ${eventName}`,
+        subject,
         html,
       }),
     })

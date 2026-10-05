@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays } from 'lucide-react'
+import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays } from 'lucide-react'
 import { STATUS_LABELS, STATUS_STYLES, exportCSV } from './adminHelpers'
 import { formatDateTime, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
@@ -19,7 +19,7 @@ const CARD_ACCENT = {
   reserved: { border: 'border-l-blue-400', header: 'from-blue-50 to-transparent' },
 }
 
-function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid }) {
+function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {} }) {
   const btnRef = useRef(null)
   const menuRef = useRef(null)
   // Si no entra hacia abajo (la tarjeta está al final de la lista, pegada al
@@ -87,6 +87,12 @@ function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDeta
                 <MessageCircle size={14} /> Avisar cupo completo
               </button>
             )}
+            {(r.status === 'deposit_paid' || r.status === 'paid') && (
+              <button onClick={() => { onResendPaymentEmail(); onClose() }}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition text-left">
+                <Mail size={14} /> Reenviar mail de pago
+              </button>
+            )}
           </div>
         </>
       )}
@@ -145,6 +151,7 @@ export default function ReservationsTab({
   reservationPageSafe, totalReservationPages, setReservationPage,
   getEvent, getStand, getUser,
   onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid,
+  onResendPaymentEmail = () => {},
   orphanStands = [], onFreeStand = () => {}, onFreeAllOrphanStands = () => {},
 }) {
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -296,6 +303,7 @@ export default function ReservationsTab({
                       onStatusChange={(status) => onStatusChange(r.id, status)}
                       onDeleteReservation={() => onDeleteReservation(r)}
                       onNotifyPaid={() => onNotifyPaid(r, ev, stand, user)}
+                      onResendPaymentEmail={() => onResendPaymentEmail(r)}
                     />
                   </div>
                 </div>

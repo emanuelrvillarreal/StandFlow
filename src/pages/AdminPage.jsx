@@ -285,6 +285,44 @@ export default function AdminPage() {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
+  // Mail de "llegó tu seña / tu pago". Reutilizable: lo dispara el cambio de
+  // estado automáticamente, y también el botón de reenvío manual. No bloquea
+  // nada si falla. Queda registrado en notification_log igual que el de
+  // aprobación.
+  function sendPaymentEmail(reservation, { silent = false } = {}) {
+    const stand = getStand(reservation.eventId, reservation.standId)
+    const ev = events.find(e => e.id === reservation.eventId)
+    const u = getUser(reservation.userId)
+    if (!u?.email || !reservation.amount) return Promise.resolve()
+
+    return supabase.functions.invoke('rapid-processor', {
+      body: {
+        to: u.email,
+        userName: u.name,
+        eventName: ev?.name,
+        kind: 'payment',
+        paymentType: reservation.paymentType,
+        amount: reservation.amount,
+        remaining: reservation.paymentType === 'deposit' && stand?.price ? stand.price - reservation.amount : null,
+        standNumber: stand?.number,
+        standName: reservation.standName,
+        eventId: reservation.eventId,
+        userId: u.id,
+      },
+    }).then(({ error: fnError }) => {
+      if (fnError) {
+        console.warn('No se pudo enviar el mail de pago:', fnError.message)
+        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el aviso de pago: ${fnError.message}`, tone: 'danger' })
+      } else if (!silent) {
+        showNotice({ title: 'Mail reenviado', message: `Se volvió a mandar el aviso a ${u.email}.`, tone: 'success' })
+      }
+    })
+  }
+
+  function handleResendPaymentEmail(reservation) {
+    sendPaymentEmail(reservation)
+  }
+
   async function handleStatusChange(resId, newStatus) {
     const reservation = reservations.find(r => r.id === resId)
     if (!reservation) return
@@ -340,6 +378,15 @@ export default function AdminPage() {
       type: 'UPDATE_RESERVATION_STATUS', id: resId, status: newStatus, paidAt,
       amount: updates.amount, paymentType: updates.payment_type, balancePaidAt: updates.balance_paid_at,
     })
+
+    // Solo se manda automáticamente cuando realmente se acaba de marcar (no
+    // se re-manda si ya estaba en ese estado); para reenviar a mano después
+    // está el botón, que llama a sendPaymentEmail directo.
+    const wasAlreadyThatStatus = reservation.status === newStatus
+    if (isNowPaid && !wasAlreadyThatStatus && updates.amount) {
+      sendPaymentEmail({ ...reservation, amount: updates.amount, paymentType: updates.payment_type }, { silent: true })
+    }
+
     if (reservationDetail?.reservation.id === resId) {
       setReservationDetail({
         ...reservationDetail,
@@ -1344,6 +1391,7 @@ export default function AdminPage() {
             onStatusChange={handleStatusChange}
             onDeleteReservation={handleDeleteReservation}
             onNotifyPaid={notifyReservationPaid}
+            onResendPaymentEmail={handleResendPaymentEmail}
             orphanStands={orphanStands}
             onFreeStand={requestFreeStand}
             onFreeAllOrphanStands={requestFreeAllOrphanStands}
@@ -1402,6 +1450,7 @@ export default function AdminPage() {
         onStatusChange={handleStatusChange}
         onDeleteReservation={handleDeleteReservation}
         onNotifyPaid={notifyReservationPaid}
+        onResendPaymentEmail={handleResendPaymentEmail}
       />
 
       <UserModal
