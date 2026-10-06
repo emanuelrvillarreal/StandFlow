@@ -64,6 +64,9 @@ serve(async (req) => {
     if (!to || !eventName) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
 
     async function logAttempt(status, errorMessage = null) {
+      const detail = kind === 'payment'
+        ? { paymentType, amount, remaining, standNumber, standName, eventName }
+        : { businessName, eventName }
       await supabaseClient.from('notification_log').insert({
         event_request_id: eventRequestId || null,
         event_id: eventId || null,
@@ -73,6 +76,8 @@ serve(async (req) => {
         status,
         error_message: errorMessage,
         sent_by: user.id,
+        subject,
+        detail,
       })
     }
 

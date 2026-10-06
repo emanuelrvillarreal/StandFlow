@@ -1202,6 +1202,8 @@ export default function AdminPage() {
       status: n.status,
       errorMessage: n.error_message,
       sentBy: n.sent_by,
+      subject: n.subject,
+      detail: n.detail,
       createdAt: n.created_at,
     })))
   }

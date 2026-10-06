@@ -341,17 +341,38 @@ export default function RequestsTab({
                         <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Fecha</th>
                         <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Destinatario</th>
                         <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Evento</th>
+                        <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Tipo</th>
+                        <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Detalle</th>
                         <th className="px-5 py-2.5 font-medium text-gray-500 text-xs uppercase">Estado</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {notificationLog.map(n => {
                         const ev = events.find(e => e.id === n.eventId)
+                        const money = (v) => `$${Number(v || 0).toLocaleString('es-AR')}`
+                        const isDeposit = n.detail?.paymentType === 'deposit'
                         return (
                           <tr key={n.id}>
                             <td className="px-5 py-2.5 text-gray-500 whitespace-nowrap">{formatDateTime(n.createdAt)}</td>
                             <td className="px-5 py-2.5 text-gray-800">{n.toEmail}</td>
-                            <td className="px-5 py-2.5 text-gray-600">{ev?.name || '—'}</td>
+                            <td className="px-5 py-2.5 text-gray-600">{ev?.name || n.detail?.eventName || '—'}</td>
+                            <td className="px-5 py-2.5">
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                {n.kind === 'payment' ? (isDeposit ? 'Seña' : 'Pago') : 'Aprobación'}
+                              </span>
+                            </td>
+                            <td className="px-5 py-2.5 text-gray-600 text-xs">
+                              {n.kind === 'payment' ? (
+                                <>
+                                  {n.detail?.standNumber && <span>Stand {n.detail.standNumber}</span>}
+                                  {n.detail?.standName && <span> ({n.detail.standName})</span>}
+                                  {n.detail?.amount != null && <span> · {money(n.detail.amount)}</span>}
+                                  {isDeposit && n.detail?.remaining != null && <span> · saldo {money(n.detail.remaining)}</span>}
+                                </>
+                              ) : (
+                                n.detail?.businessName || n.subject || '—'
+                              )}
+                            </td>
                             <td className="px-5 py-2.5">
                               {n.status === 'sent' ? (
                                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Enviado</span>
