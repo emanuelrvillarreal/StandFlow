@@ -58,14 +58,16 @@ serve(async (req) => {
     const {
       to, businessName, userName, eventName, mapUrl,
       eventRequestId, eventId, userId,
-      kind = 'approval', // 'approval' | 'payment'
+      kind = 'approval', // 'approval' | 'payment' | 'expiration'
       paymentType, amount, standNumber, standName, remaining,
     } = body
     if (!to || !eventName) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
 
+    const money = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
+
     async function logAttempt(status, errorMessage = null) {
-      const detail = kind === 'payment'
-        ? { paymentType, amount, remaining, standNumber, standName, eventName }
+      const detail = kind === 'payment' ? { paymentType, amount, remaining, standNumber, standName, eventName }
+        : kind === 'expiration' ? { standNumber, standName, eventName, amount }
         : { businessName, eventName }
       await supabaseClient.from('notification_log').insert({
         event_request_id: eventRequestId || null,
@@ -84,7 +86,6 @@ serve(async (req) => {
     let subject, html
     if (kind === 'payment') {
       const isDeposit = paymentType === 'deposit'
-      const money = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
       subject = isDeposit ? `Recibimos tu seña - ${eventName}` : `Recibimos tu pago - ${eventName}`
       html = wrapEmail(
         isDeposit ? '¡Llegó tu seña!' : '¡Llegó tu pago!',
@@ -96,6 +97,20 @@ serve(async (req) => {
             ${isDeposit && remaining ? `<br/><strong>Saldo pendiente:</strong> ${money(remaining)}` : ''}
           </p>
           <p style="color:#888; font-size:13px;">Si tenés alguna duda, contactá a la organización.</p>
+        `,
+      )
+    } else if (kind === 'expiration') {
+      subject = `Tu reserva está por vencer - ${eventName}`
+      html = wrapEmail(
+        '¡Tu reserva está por vencer!',
+        `
+          <p>Hola${userName ? ` ${userName}` : ''},</p>
+          <p>Todavía no recibimos el comprobante de tu stand${standNumber ? ` <strong>${standNumber}</strong>` : ''}${standName ? ` (${standName})` : ''} en <strong>${eventName}</strong>.</p>
+          <p style="background:#fff4e5; border:1px solid #ffdca8; border-radius:12px; padding:14px 18px; margin:20px 0; color:#9a5b00;">
+            Recordá que tenés <strong>72 hs</strong> desde que reservaste para enviar el monto de la seña. Pasado ese plazo, si no recibimos el comprobante, la reserva se cancelará automáticamente.
+          </p>
+          ${amount ? `<p><strong>Monto a abonar:</strong> ${money(amount)}</p>` : ''}
+          <p style="color:#888; font-size:13px;">Si ya lo enviaste, contactá a la organización para confirmarlo.</p>
         `,
       )
     } else {

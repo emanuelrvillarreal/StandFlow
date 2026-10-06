@@ -337,6 +337,41 @@ export default function AdminPage() {
     sendPaymentEmail(reservation)
   }
 
+  // Mail de "tu reserva está por vencer" (72 hs sin seña/pago). Es manual
+  // únicamente: lo dispara el botón del panel, no hay nada automático.
+  function sendExpirationWarningEmail(reservation) {
+    const stand = getStand(reservation.eventId, reservation.standId)
+    const ev = events.find(e => e.id === reservation.eventId)
+    const u = getUser(reservation.userId)
+    if (!u?.email) return Promise.resolve()
+
+    return supabase.functions.invoke('rapid-processor', {
+      body: {
+        to: u.email,
+        userName: u.name,
+        eventName: ev?.name,
+        kind: 'expiration',
+        amount: stand?.price,
+        standNumber: stand?.number,
+        standName: reservation.standName,
+        eventId: reservation.eventId,
+        userId: u.id,
+      },
+    }).then(async ({ error: fnError }) => {
+      if (fnError) {
+        const detail = await describeFnError(fnError)
+        console.warn('No se pudo enviar el aviso de vencimiento:', detail)
+        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el aviso de vencimiento: ${detail}`, tone: 'danger' })
+      } else {
+        showNotice({ title: 'Mail enviado', message: `Se mandó el aviso de vencimiento a ${u.email}.`, tone: 'success' })
+      }
+    })
+  }
+
+  function handleSendExpirationWarning(reservation) {
+    sendExpirationWarningEmail(reservation)
+  }
+
   async function handleStatusChange(resId, newStatus) {
     const reservation = reservations.find(r => r.id === resId)
     if (!reservation) return
@@ -1410,6 +1445,7 @@ export default function AdminPage() {
             onDeleteReservation={handleDeleteReservation}
             onNotifyPaid={notifyReservationPaid}
             onResendPaymentEmail={handleResendPaymentEmail}
+            onSendExpirationWarning={handleSendExpirationWarning}
             orphanStands={orphanStands}
             onFreeStand={requestFreeStand}
             onFreeAllOrphanStands={requestFreeAllOrphanStands}
@@ -1469,6 +1505,7 @@ export default function AdminPage() {
         onDeleteReservation={handleDeleteReservation}
         onNotifyPaid={notifyReservationPaid}
         onResendPaymentEmail={handleResendPaymentEmail}
+        onSendExpirationWarning={handleSendExpirationWarning}
       />
 
       <UserModal

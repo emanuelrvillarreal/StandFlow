@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
-import { Eye, EyeOff, Zap } from 'lucide-react'
+import { Eye, EyeOff, Zap, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import BrandFooter from '../components/BrandFooter'
 
@@ -140,10 +140,13 @@ export default function LoginPage() {
             ¿No tenés cuenta?{' '}
             <Link to="/register" className="text-accent font-medium hover:text-accent-soft transition">Registrarse</Link>
           </p>
-          <p className="text-center text-muted text-sm mt-3">
-            ¿Sos Sponsor?{' '}
-            <Link to="/sponsor" className="text-amber-400 font-medium hover:text-amber-300 transition">Registrate acá.</Link>
-          </p>
+          <Link to="/sponsor"
+            className="mt-5 flex items-center gap-3 bg-amber-500/10 border border-amber-400/40 hover:border-amber-400 hover:bg-amber-500/20 rounded-xl px-4 py-3 transition">
+            <Sparkles className="text-amber-400 flex-shrink-0" size={22} />
+            <span className="text-sm text-amber-200">
+              <span className="font-bold text-amber-300">¿Sos Sponsor?</span> Registrate acá con tu código.
+            </span>
+          </Link>
           <p className="text-center text-muted text-xs mt-3">
             <Link to="/events" className="hover:text-muted transition">Ver eventos sin iniciar sesión</Link>
           </p>

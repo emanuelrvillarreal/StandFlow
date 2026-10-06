@@ -19,7 +19,7 @@ const CARD_ACCENT = {
   reserved: { border: 'border-l-blue-400', header: 'from-blue-50 to-transparent' },
 }
 
-function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {} }) {
+function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {} }) {
   const btnRef = useRef(null)
   const menuRef = useRef(null)
   // Si no entra hacia abajo (la tarjeta está al final de la lista, pegada al
@@ -93,6 +93,12 @@ function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDeta
                 <Mail size={14} /> Reenviar mail de pago
               </button>
             )}
+            {r.status === 'pending' && (
+              <button onClick={() => { onSendExpirationWarning(); onClose() }}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 transition text-left">
+                <AlertTriangle size={14} /> Avisar vencimiento (72 hs)
+              </button>
+            )}
           </div>
         </>
       )}
@@ -152,6 +158,7 @@ export default function ReservationsTab({
   getEvent, getStand, getUser,
   onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid,
   onResendPaymentEmail = () => {},
+  onSendExpirationWarning = () => {},
   orphanStands = [], onFreeStand = () => {}, onFreeAllOrphanStands = () => {},
 }) {
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -304,6 +311,7 @@ export default function ReservationsTab({
                       onDeleteReservation={() => onDeleteReservation(r)}
                       onNotifyPaid={() => onNotifyPaid(r, ev, stand, user)}
                       onResendPaymentEmail={() => onResendPaymentEmail(r)}
+                      onSendExpirationWarning={() => onSendExpirationWarning(r)}
                     />
                   </div>
                 </div>

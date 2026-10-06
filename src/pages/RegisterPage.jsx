@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Zap, ArrowLeft } from 'lucide-react'
+import { Zap, ArrowLeft, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import BrandFooter from '../components/BrandFooter'
 
@@ -132,6 +132,14 @@ export default function RegisterPage() {
             ¿Ya tenés cuenta?{' '}
             <Link to="/login" className="text-accent font-medium hover:text-accent-soft transition">Iniciar sesión</Link>
           </p>
+
+          <Link to="/sponsor"
+            className="mt-5 flex items-center gap-3 bg-amber-500/10 border border-amber-400/40 hover:border-amber-400 hover:bg-amber-500/20 rounded-xl px-4 py-3 transition">
+            <Sparkles className="text-amber-400 flex-shrink-0" size={22} />
+            <span className="text-sm text-amber-200">
+              <span className="font-bold text-amber-300">¿Sos Sponsor?</span> Registrate acá con tu código, no completes este formulario.
+            </span>
+          </Link>
         </div>
       </div>
       <BrandFooter className="relative" />

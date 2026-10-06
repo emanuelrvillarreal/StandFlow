@@ -358,11 +358,11 @@ export default function RequestsTab({
                             <td className="px-5 py-2.5 text-gray-600">{ev?.name || n.detail?.eventName || '—'}</td>
                             <td className="px-5 py-2.5">
                               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                {n.kind === 'payment' ? (isDeposit ? 'Seña' : 'Pago') : 'Aprobación'}
+                                {n.kind === 'payment' ? (isDeposit ? 'Seña' : 'Pago') : n.kind === 'expiration' ? 'Vencimiento' : 'Aprobación'}
                               </span>
                             </td>
                             <td className="px-5 py-2.5 text-gray-600 text-xs">
-                              {n.kind === 'payment' ? (
+                              {(n.kind === 'payment' || n.kind === 'expiration') ? (
                                 <>
                                   {n.detail?.standNumber && <span>Stand {n.detail.standNumber}</span>}
                                   {n.detail?.standName && <span> ({n.detail.standName})</span>}
