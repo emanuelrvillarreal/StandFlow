@@ -85,6 +85,19 @@ export default function AdminPage() {
     setNotice({ title, itemLabel, message, tone })
   }
 
+  // supabase-js solo expone un mensaje genérico en fnError.message; el motivo
+  // real que mandó la Edge Function (400/401/403/500) viaja en el body de la
+  // respuesta, accesible vía fnError.context.
+  async function describeFnError(fnError) {
+    try {
+      if (fnError?.context && typeof fnError.context.json === 'function') {
+        const body = await fnError.context.json()
+        if (body?.error) return body.error
+      }
+    } catch {}
+    return fnError?.message || 'Error desconocido'
+  }
+
   function requestConfirm({ title, itemLabel, message, confirmLabel, tone, onConfirm }) {
     setConfirmDialog({ title, itemLabel, message, confirmLabel, tone, onConfirm })
   }
@@ -309,10 +322,11 @@ export default function AdminPage() {
         eventId: reservation.eventId,
         userId: u.id,
       },
-    }).then(({ error: fnError }) => {
+    }).then(async ({ error: fnError }) => {
       if (fnError) {
-        console.warn('No se pudo enviar el mail de pago:', fnError.message)
-        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el aviso de pago: ${fnError.message}`, tone: 'danger' })
+        const detail = await describeFnError(fnError)
+        console.warn('No se pudo enviar el mail de pago:', detail)
+        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el aviso de pago: ${detail}`, tone: 'danger' })
       } else if (!silent) {
         showNotice({ title: 'Mail reenviado', message: `Se volvió a mandar el aviso a ${u.email}.`, tone: 'success' })
       }
@@ -1149,10 +1163,11 @@ export default function AdminPage() {
         eventId: ev.id,
         userId: u.id,
       },
-    }).then(({ error: fnError }) => {
+    }).then(async ({ error: fnError }) => {
       if (fnError) {
-        console.warn('No se pudo enviar el mail de aprobación:', fnError.message)
-        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el mail de aviso: ${fnError.message}`, tone: 'danger' })
+        const detail = await describeFnError(fnError)
+        console.warn('No se pudo enviar el mail de aprobación:', detail)
+        showNotice({ title: 'El mail no salió', message: `No se pudo enviar el mail de aviso: ${detail}`, tone: 'danger' })
       } else if (!silent) {
         showNotice({ title: 'Mail reenviado', message: `Se volvió a mandar el aviso a ${u.email}.`, tone: 'success' })
       }
