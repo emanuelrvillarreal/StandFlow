@@ -486,6 +486,7 @@ function mapEventRequest(r) {
     message: r.message || '',
     createdAt: r.created_at,
     decidedAt: r.decided_at,
+    decidedBy: r.decided_by || null,
   }
 }
 

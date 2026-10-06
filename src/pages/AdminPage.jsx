@@ -1193,9 +1193,10 @@ export default function AdminPage() {
 
   async function decideRequest(request, status) {
     const decidedAt = new Date().toISOString()
+    const decidedBy = currentUser?.id || null
     const { error } = await supabase
       .from('event_requests')
-      .update({ status, decided_at: decidedAt })
+      .update({ status, decided_at: decidedAt, decided_by: decidedBy })
       .eq('id', request.id)
 
     if (error) {
@@ -1203,7 +1204,7 @@ export default function AdminPage() {
       return
     }
 
-    dispatch({ type: 'UPSERT_EVENT_REQUEST', request: { ...request, status, decidedAt } })
+    dispatch({ type: 'UPSERT_EVENT_REQUEST', request: { ...request, status, decidedAt, decidedBy } })
 
     if (status === 'approved') {
       sendApprovalEmail({ ...request, status, decidedAt }, { silent: true })

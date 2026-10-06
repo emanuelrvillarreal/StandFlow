@@ -70,7 +70,7 @@ function Field({ label, value }) {
   )
 }
 
-function RequestDetailModal({ request, user, event, onClose }) {
+function RequestDetailModal({ request, user, event, decidedByUser, onClose }) {
   if (!request) return null
   // Portal a document.body: el <main> del panel tiene su propio z-index y
   // "atrapa" todo lo que esta adentro por debajo del sidebar (que tiene un
@@ -109,6 +109,7 @@ function RequestDetailModal({ request, user, event, onClose }) {
           <p className="text-[11px] text-gray-400">
             Solicitada el {formatDateTime(request.createdAt)}
             {request.decidedAt && request.status !== 'pending' && ` · resuelta el ${formatDateTime(request.decidedAt)}`}
+            {decidedByUser && request.status !== 'pending' && ` por ${decidedByUser.name} ${decidedByUser.lastName || ''}`.trimEnd()}
           </p>
         </div>
       </div>
@@ -268,6 +269,10 @@ export default function RequestsTab({
                 <p className="text-[11px] text-gray-400">
                   Solicitada el {formatDateTime(r.createdAt)}
                   {r.decidedAt && r.status !== 'pending' && ` · resuelta el ${formatDateTime(r.decidedAt)}`}
+                  {r.decidedBy && r.status !== 'pending' && (() => {
+                    const decider = users.find(x => x.id === r.decidedBy)
+                    return decider ? ` por ${decider.name} ${decider.lastName || ''}`.trimEnd() : ''
+                  })()}
                 </p>
               </div>
 
@@ -370,6 +375,7 @@ export default function RequestsTab({
         request={detailRequest}
         user={detailRequest ? users.find(x => x.id === detailRequest.userId) : null}
         event={detailRequest ? events.find(x => x.id === detailRequest.eventId) : null}
+        decidedByUser={detailRequest?.decidedBy ? users.find(x => x.id === detailRequest.decidedBy) : null}
         onClose={() => setDetailRequest(null)}
       />
     </div>
