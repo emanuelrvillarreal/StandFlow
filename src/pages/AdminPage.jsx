@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { supabase, createIsolatedAuthClient } from '../lib/supabase'
+import { compressAndUploadImage } from '../lib/uploadImage'
 import {
   LayoutDashboard, Users, Calendar, Tag, LogOut,
   Eye, TrendingUp, Settings, ClipboardList, UserCheck, Sparkles, Menu, X, ClipboardCheck, Zap,
@@ -24,6 +25,7 @@ import ReservationDetailModal from './admin/ReservationDetailModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import NoticeDialog from '../components/NoticeDialog'
 import UserModal from './admin/UserModal'
+import UserDetailModal from './admin/UserDetailModal'
 import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
 
@@ -60,6 +62,7 @@ export default function AdminPage() {
   const [notificationLog, setNotificationLog] = useState(null) // null = todavía no se cargó
   const [loadingNotificationLog, setLoadingNotificationLog] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
+  const [viewingUser, setViewingUser] = useState(null)
   const [blockUserTarget, setBlockUserTarget] = useState(null)
   const [blockReason, setBlockReason] = useState('')
   const [editingUser, setEditingUser] = useState(null)
@@ -126,36 +129,26 @@ export default function AdminPage() {
     }
   }, [location.pathname, location.state, navigate])
 
-  // Las fotos de celular pueden pesar varios MB; guardadas tal cual en la base
-  // (como base64) hacían que el UPDATE del evento tardara tanto que a veces
-  // Postgres lo cortaba por timeout. Acá se achican a un tamaño razonable
-  // antes de guardarlas, igual para póster, mapas y mapa de Sponsors.
-  const MAX_IMAGE_DIM = 1600
-  const IMAGE_QUALITY = 0.82
+  // Las fotos de celular pueden pesar varios MB. Antes se guardaban como
+  // base64 directo en la fila del evento: además de ser lento, eso hace que
+  // esa imagen entera se vuelva a bajar cada vez que cualquiera consulta el
+  // evento (dispara el consumo de Egress de Supabase). Ahora se achican y se
+  // suben a Storage; en la fila solo queda la URL, que el navegador cachea
+  // como cualquier imagen común.
+  const [uploadingImage, setUploadingImage] = useState(null)
 
-  function handleFileUpload(e, type) {
+  async function handleFileUpload(e, type) {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const img = new Image()
-      img.onload = () => {
-        let { width, height } = img
-        if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
-          const scale = MAX_IMAGE_DIM / Math.max(width, height)
-          width = Math.round(width * scale)
-          height = Math.round(height * scale)
-        }
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
-        setEventForm(prev => ({ ...prev, [type]: canvas.toDataURL('image/jpeg', IMAGE_QUALITY) }))
-      }
-      img.onerror = () => setEventForm(prev => ({ ...prev, [type]: reader.result }))
-      img.src = reader.result
+    setUploadingImage(type)
+    try {
+      const url = await compressAndUploadImage(file, { folder: 'events' })
+      setEventForm(prev => ({ ...prev, [type]: url }))
+    } catch (err) {
+      showNotice({ title: 'No se pudo subir la imagen', message: err.message, tone: 'danger' })
+    } finally {
+      setUploadingImage(null)
     }
-    reader.readAsDataURL(file)
   }
 
   const allStands = events.flatMap(e => e.stands)
@@ -1485,6 +1478,7 @@ export default function AdminPage() {
             onResetPassword={handleResetUserPassword}
             onBlockUser={openBlockUserModal}
             onUnblockUser={handleUnblockUser}
+            onViewUser={setViewingUser}
           />
         )}
 
@@ -1519,6 +1513,12 @@ export default function AdminPage() {
         onSave={handleSaveUser}
       />
 
+      <UserDetailModal
+        user={viewingUser}
+        reservationsCount={viewingUser ? reservations.filter(r => r.userId === viewingUser.id).length : 0}
+        onClose={() => setViewingUser(null)}
+      />
+
       <SponsorMemberModal
         target={memberModal}
         saving={savingMember}
@@ -1543,6 +1543,7 @@ export default function AdminPage() {
         eventForm={eventForm}
         setEventForm={setEventForm}
         onFileUpload={handleFileUpload}
+        uploadingImage={uploadingImage}
         onClose={() => { setShowEventModal(false); setEditingEvent(null) }}
         onSave={handleSaveEvent}
       />

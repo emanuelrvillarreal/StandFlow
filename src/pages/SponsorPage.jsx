@@ -213,7 +213,7 @@ export default function SponsorPage() {
 
               {info.sponsor_image && (
                 <div className="rounded-xl border border-ink-600 overflow-x-auto" data-sponsor-map>
-                  <div className="relative min-w-[680px] sm:min-w-0">
+                  <div className="relative min-w-[1300px]">
                   <img src={info.sponsor_image} alt="Mapa de Sponsors" className="w-full h-auto block select-none" draggable={false} />
                   {info.stands.map(s => {
                     const free = s.status === 'available'
@@ -222,12 +222,12 @@ export default function SponsorPage() {
                       <button key={s.id} type="button" disabled={!free}
                         onClick={() => setStandId(s.id)}
                         title={free ? `Stand ${s.number}` : `Stand ${s.number} (ocupado)`}
-                        style={{ left: `${s.x}%`, top: `${s.y}%` }}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white text-[11px] sm:text-sm font-bold text-white shadow-lg transition ${
-                          selected ? 'bg-accent !text-ink-950 scale-125 ring-4 ring-accent/40'
-                            : free ? 'bg-amber-500 hover:scale-110'
+                        style={{ left: `${s.x}%`, top: `${s.y}%`, zIndex: selected ? 10 : 1 }}
+                        className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-white text-white font-bold shadow transition flex items-center justify-center ${
+                          selected ? 'bg-accent !text-ink-950 scale-150 ring-2 ring-accent/40 z-10'
+                            : free ? 'bg-amber-500 hover:scale-125 hover:z-10'
                             : 'bg-red-500 opacity-70 cursor-not-allowed'}`}>
-                        {s.number}
+                        <span style={{ fontSize: s.number.length > 2 ? 7 : 9 }}>{s.number}</span>
                       </button>
                     )
                   })}
@@ -237,7 +237,7 @@ export default function SponsorPage() {
 
               <div>
                 <p className="text-sm font-medium text-muted mb-2">Elegí tu stand</p>
-                {info.sponsor_image && <p className="text-[11px] text-muted mb-2 sm:hidden">Deslizá el mapa para verlo completo.</p>}
+                {info.sponsor_image && <p className="text-[11px] text-muted mb-2">Deslizá el mapa para verlo completo.</p>}
                 {info.stands.length === 0 ? (
                   <p className="text-sm text-muted bg-ink-900 border border-ink-600 rounded-xl p-4">
                     La organización todavía no asignó stands para Sponsors en este evento.

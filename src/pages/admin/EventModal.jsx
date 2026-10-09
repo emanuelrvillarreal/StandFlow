@@ -6,7 +6,7 @@ function generateSponsorCode() {
   return 'SP-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('')
 }
 
-export default function EventModal({ open, isEditing, events, eventForm, setEventForm, onFileUpload, onClose, onSave }) {
+export default function EventModal({ open, isEditing, events, eventForm, setEventForm, onFileUpload, uploadingImage = null, onClose, onSave }) {
   if (!open) return null
 
 
@@ -178,7 +178,12 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
                         <span className="text-sm font-bold text-gray-600">Subir Captura</span>
                       </label>
                       <div className="p-1 border-2 border-gray-100 rounded-2xl bg-white overflow-hidden min-h-[52px] relative">
-                        {eventForm.mapImageSponsor ? (
+                        {uploadingImage === 'mapImageSponsor' ? (
+                          <div className="flex items-center gap-2 text-amber-500 p-3">
+                            <RefreshCw size={16} className="animate-spin" />
+                            <p className="text-sm font-bold">Subiendo...</p>
+                          </div>
+                        ) : eventForm.mapImageSponsor ? (
                           <>
                             <img src={eventForm.mapImageSponsor} className="w-full h-full object-cover" alt="Mapa de Sponsors" />
                             <button type="button" onClick={() => setEventForm({ ...eventForm, mapImageSponsor: null })}
@@ -214,7 +219,12 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
                   </div>
                 </label>
                 <div className="p-1 border-2 border-gray-100 rounded-2xl bg-gray-50 overflow-hidden relative min-h-[60px]">
-                  {eventForm.posterImage ? (
+                  {uploadingImage === 'posterImage' ? (
+                    <div className="flex items-center gap-2 text-violet-500 p-3">
+                      <RefreshCw size={16} className="animate-spin" />
+                      <p className="text-sm font-bold">Subiendo...</p>
+                    </div>
+                  ) : eventForm.posterImage ? (
                     <img src={eventForm.posterImage} className="w-full h-full object-cover" alt="Preview Póster" />
                   ) : (
                     <div className="flex items-center gap-2 text-gray-400 p-3">
@@ -238,7 +248,12 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
                   </div>
                 </label>
                 <div className="p-1 border-2 border-gray-100 rounded-2xl bg-gray-50 overflow-hidden relative min-h-[60px]">
-                  {eventForm.mapImageSalon ? (
+                  {uploadingImage === 'mapImageSalon' ? (
+                    <div className="flex items-center gap-2 text-violet-500 p-3">
+                      <RefreshCw size={16} className="animate-spin" />
+                      <p className="text-sm font-bold">Subiendo...</p>
+                    </div>
+                  ) : eventForm.mapImageSalon ? (
                     <img src={eventForm.mapImageSalon} className="w-full h-full object-cover" alt="Preview Salon" />
                   ) : (
                     <div className="flex items-center gap-2 text-gray-400 p-3">
@@ -262,7 +277,12 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
                   </div>
                 </label>
                 <div className="p-1 border-2 border-gray-100 rounded-2xl bg-gray-50 overflow-hidden relative min-h-[60px]">
-                  {eventForm.mapImageGaleria ? (
+                  {uploadingImage === 'mapImageGaleria' ? (
+                    <div className="flex items-center gap-2 text-violet-500 p-3">
+                      <RefreshCw size={16} className="animate-spin" />
+                      <p className="text-sm font-bold">Subiendo...</p>
+                    </div>
+                  ) : eventForm.mapImageGaleria ? (
                     <img src={eventForm.mapImageGaleria} className="w-full h-full object-cover" alt="Preview Galeria" />
                   ) : (
                     <div className="flex items-center gap-2 text-gray-400 p-3">

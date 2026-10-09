@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { formatBirthDate } from '../../lib/formatDateTime'
-import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw } from 'lucide-react'
+import { formatBirthDate, formatDateTime } from '../../lib/formatDateTime'
+import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw, Eye, ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react'
 
-export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {} }) {
+export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, onViewUser = () => {}, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {} }) {
   const [search, setSearch] = useState('')
+  const [sortDir, setSortDir] = useState('desc')
   const [showDeleted, setShowDeleted] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
 
@@ -21,12 +22,17 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return users
-    return users.filter(u => {
+    const base = !q ? users : users.filter(u => {
       const haystack = [u.name, u.lastName, u.businessName, u.email, u.phone].filter(Boolean).join(' ').toLowerCase()
       return haystack.includes(q)
     })
-  }, [users, search])
+    const sorted = [...base].sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return sortDir === 'asc' ? ta - tb : tb - ta
+    })
+    return sorted
+  }, [users, search, sortDir])
 
   return (
     <div className="space-y-3">
@@ -40,15 +46,23 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
         </button>
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, emprendimiento, email o teléfono..."
-          className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, emprendimiento, email o teléfono..."
+            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+        </div>
+        <button onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+          title={sortDir === 'desc' ? 'Más nuevos primero' : 'Más viejos primero'}
+          className="flex items-center gap-1.5 px-3.5 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition flex-shrink-0">
+          {sortDir === 'desc' ? <ArrowDownNarrowWide size={16} /> : <ArrowUpNarrowWide size={16} />}
+          <span className="hidden sm:inline">Registro</span>
+        </button>
       </div>
 
       {search && (
@@ -65,6 +79,9 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
               <p className="font-semibold text-gray-900 truncate">{u.name} {u.lastName}</p>
               {u.businessName && <p className="text-sm text-violet-600 font-medium truncate">{u.businessName}</p>}
               <p className="text-sm text-gray-400 truncate">{u.email} • {u.phone}{u.birthDate ? ` • Nac. ${formatBirthDate(u.birthDate)}` : ''}</p>
+              {u.createdAt && (
+                <p className="text-xs text-gray-400 mt-0.5">Se registró el {formatDateTime(u.createdAt)}</p>
+              )}
               {u.isBlocked && u.blockedReason && (
                 <p className="text-xs text-red-500 mt-1 italic truncate" title={u.blockedReason}>Motivo: {u.blockedReason}</p>
               )}
@@ -96,6 +113,10 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
                 <ShieldOff size={16} />
               </button>
             )}
+            <button onClick={() => onViewUser(u)}
+              className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition" title="Consultar">
+              <Eye size={16} />
+            </button>
             <button onClick={() => onResetPassword(u)}
               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Reenviar recuperación de contraseña">
               <KeyRound size={16} />

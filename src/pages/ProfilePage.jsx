@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
+import { compressAndUploadImage } from '../lib/uploadImage'
 import { ArrowLeft, Camera, Instagram, Store, Zap, Cake } from 'lucide-react'
 
 export default function ProfilePage() {
@@ -20,34 +21,26 @@ export default function ProfilePage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  // Las fotos de celular pueden pesar varios MB; guardadas tal cual en la
-  // base (como base64) hacen que TODO el panel de admin tarde en cargar,
-  // porque trae los perfiles de todos los expositores en cada ingreso. Se
-  // achican antes de guardar, igual que las imágenes de eventos.
-  function handlePhotoUpload(e) {
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  // Las fotos de celular pueden pesar varios MB. Antes se guardaban como
+  // base64 directo en el perfil: eso hace que TODO el panel de admin tarde
+  // en cargar (trae los perfiles de todos los expositores en cada ingreso)
+  // y además se vuelve a bajar entera cada vez que se consulta ese perfil
+  // (dispara el consumo de Egress de Supabase). Ahora se achica y se sube a
+  // Storage; en el perfil solo queda la URL, que el navegador cachea.
+  async function handlePhotoUpload(e) {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const img = new Image()
-      img.onload = () => {
-        const MAX_DIM = 1000
-        let { width, height } = img
-        if (width > MAX_DIM || height > MAX_DIM) {
-          const scale = MAX_DIM / Math.max(width, height)
-          width = Math.round(width * scale)
-          height = Math.round(height * scale)
-        }
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
-        setForm(prev => ({ ...prev, businessPhoto: canvas.toDataURL('image/jpeg', 0.82) }))
-      }
-      img.onerror = () => setForm(prev => ({ ...prev, businessPhoto: reader.result }))
-      img.src = reader.result
+    setUploadingPhoto(true)
+    try {
+      const url = await compressAndUploadImage(file, { folder: 'profiles', maxDim: 1000 })
+      setForm(prev => ({ ...prev, businessPhoto: url }))
+    } catch (err) {
+      setError(`No se pudo subir la foto: ${err.message}`)
+    } finally {
+      setUploadingPhoto(false)
     }
-    reader.readAsDataURL(file)
   }
 
   async function handleSave() {
@@ -105,7 +98,9 @@ export default function ProfilePage() {
 
           <div className="flex items-center gap-5">
             <div className="w-24 h-24 rounded-2xl bg-ink-900 border border-ink-600 overflow-hidden flex items-center justify-center flex-shrink-0">
-              {form.businessPhoto ? (
+              {uploadingPhoto ? (
+                <Zap className="text-accent animate-pulse" size={28} />
+              ) : form.businessPhoto ? (
                 <img src={form.businessPhoto} alt="Foto del emprendimiento" className="w-full h-full object-cover" />
               ) : (
                 <Store className="text-muted" size={32} />
@@ -113,8 +108,8 @@ export default function ProfilePage() {
             </div>
             <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink-700 hover:bg-ink-600 text-white text-sm font-medium cursor-pointer transition">
               <Camera size={16} />
-              Subir foto
-              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+              {uploadingPhoto ? 'Subiendo...' : 'Subir foto'}
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
             </label>
           </div>
 

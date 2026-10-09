@@ -460,6 +460,7 @@ function mapProfile(profile) {
     maxStands: Number(profile.maxStands ?? profile.max_stands ?? 1) || 1,
     isSysadmin: !!(profile.isSysadmin ?? profile.is_sysadmin),
     birthDate: profile.birthDate ?? profile.birth_date ?? '',
+    createdAt: profile.createdAt ?? profile.created_at ?? null,
   }
 }
 
