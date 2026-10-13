@@ -180,9 +180,18 @@ export default function MyReservationsPage() {
                     </div>
                   </div>
 
+                  {r.categoryDetails && (
+                    <div className="px-5 pb-4">
+                      <div className="bg-ink-900 border border-ink-600 rounded-xl px-4 py-3">
+                        <p className="text-xs text-muted mb-1">Detalles del stand</p>
+                        <p className="text-sm text-white whitespace-pre-line">{r.categoryDetails}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {r.status === 'pending' && (
                     <div className="px-5 pb-5 space-y-3">
-                      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs px-3 py-2.5 rounded-xl">
+                      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-100 text-sm sm:text-base leading-relaxed px-4 py-4 rounded-xl whitespace-pre-line">
                         {ev?.paymentInstructions || 'Enviá el comprobante de pago para confirmar tu reserva.'}
                       </div>
                       {(ev?.contactMethod || 'whatsapp') !== 'email' && (

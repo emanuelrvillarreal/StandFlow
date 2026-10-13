@@ -56,6 +56,13 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
             </div>
           </div>
 
+          {reservation.categoryDetails && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Detalles del stand</p>
+              <p className="text-sm text-gray-700 whitespace-pre-line">{reservation.categoryDetails}</p>
+            </div>
+          )}
+
           <div>
             <h3 className="font-bold text-gray-800 mb-3">Datos del expositor (titular de la cuenta)</h3>
             <div className="flex items-center gap-4 mb-3">

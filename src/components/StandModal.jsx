@@ -47,6 +47,13 @@ export default function StandModal({ stand, category, event, onClose, onReserve,
             </div>
           )}
 
+          {category?.details && (
+            <div className="bg-ink-900 border border-ink-600 rounded-xl px-4 py-3">
+              <p className="text-xs text-muted mb-1">Detalles del stand</p>
+              <p className="text-sm text-white whitespace-pre-line">{category.details}</p>
+            </div>
+          )}
+
           {stand.isSponsor ? (
             <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm px-4 py-3 rounded-xl">
               Este stand está reservado para Sponsors del evento.

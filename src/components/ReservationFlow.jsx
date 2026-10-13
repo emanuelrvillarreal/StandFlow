@@ -15,6 +15,7 @@ function toReservationRow(reservation) {
     shared_with: reservation.sharedWith,
     instagram: reservation.instagram,
     category_id: reservation.categoryId,
+    category_details: reservation.categoryDetails,
     status: reservation.status,
     amount: reservation.amount,
     payment_type: reservation.paymentType,
@@ -56,6 +57,12 @@ export default function ReservationFlow({ stand, event, onClose }) {
     setError('')
     setSubmitting(true)
 
+    // El detalle (medidas, qué incluye) es el de la categoría de PRECIO del
+    // stand (la que le puso el admin, la que se ve en el mapa antes de
+    // reservar) — no la categoría de "qué vendés" que elige el expositor acá
+    // abajo, que pisa stand.category_id una vez reservado.
+    const standCategoryDetails = categories.find(c => c.id === stand.categoryId)?.details || null
+
     const res = {
       id: crypto.randomUUID(),
       eventId: event.id,
@@ -66,6 +73,7 @@ export default function ReservationFlow({ stand, event, onClose }) {
       sharedWith: form.sharedWith,
       instagram: form.instagram,
       categoryId: form.categoryId,
+      categoryDetails: standCategoryDetails,
       status: 'pending',
       amount: calculatedAmount,
       paymentType: form.paymentType,
@@ -106,16 +114,17 @@ export default function ReservationFlow({ stand, event, onClose }) {
     // PostgREST responde "Could not find the 'payment_type' column ... in the
     // schema cache". Reintentamos sin esas columnas para no bloquear la reserva.
     // Solución definitiva: ejecutar supabase-rls-policies.sql / supabase-reservation-days.sql.
-    if (reservationError && /payment_type|paid_at|days/i.test(reservationError.message)) {
+    if (reservationError && /payment_type|paid_at|days|category_details/i.test(reservationError.message)) {
       const fallbackRow = { ...baseRow }
       delete fallbackRow.days
       delete fallbackRow.payment_type
       delete fallbackRow.paid_at
+      delete fallbackRow.category_details
       const { error: retryError } = await supabase.from('reservations').insert(fallbackRow)
       reservationError = retryError || null
       if (!reservationError) {
         console.warn(
-          'Reserva guardada sin payment_type/paid_at: falta ejecutar el ALTER TABLE en Supabase (ver supabase-rls-policies.sql).'
+          'Reserva guardada sin payment_type/paid_at/category_details: falta ejecutar el ALTER TABLE en Supabase (ver supabase-rls-policies.sql / supabase-category-details.sql).'
         )
       }
     }

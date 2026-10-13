@@ -52,7 +52,7 @@ export default function AdminPage() {
   const [filterCategory, setFilterCategory] = useState('all')
   const [reservationPage, setReservationPage] = useState(1)
   const [reservationSort, setReservationSort] = useState('newest') // newest | oldest
-  const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6' })
+  const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6', details: '' })
   const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', type: 'expense' })
   const [editingCat, setEditingCat] = useState(null)
   const [settingsForm, setSettingsForm] = useState(state.settings)
@@ -491,13 +491,13 @@ export default function AdminPage() {
       return
     }
     dispatch({ type: 'ADD_CATEGORY', category: newCat })
-    setCatForm({ name: '', color: '#3B82F6' })
+    setCatForm({ name: '', color: '#3B82F6', details: '' })
   }
 
   async function handleSaveCat() {
     const { error } = await supabase
       .from('categories')
-      .update({ name: editingCat.name, color: editingCat.color })
+      .update({ name: editingCat.name, color: editingCat.color, details: editingCat.details || null })
       .eq('id', editingCat.id)
     if (error) {
       showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar la categoría: ${error.message}`, tone: 'danger' })
