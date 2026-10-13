@@ -3,6 +3,7 @@ import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
 import { X, ArrowLeft, CheckCircle, MessageCircle, Mail, CalendarDays } from 'lucide-react'
 import { eventDays, formatShortDay } from '../lib/formatDateTime'
+import { effectiveDepositPercent } from '../pages/admin/adminHelpers'
 
 function toReservationRow(reservation) {
   return {
@@ -38,7 +39,7 @@ export default function ReservationFlow({ stand, event, onClose }) {
   const [submitting, setSubmitting] = useState(false)
   const [reservation, setReservation] = useState(null)
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
-  const depositPercent = Number(event.depositPercent) || 50
+  const depositPercent = effectiveDepositPercent(stand, event)
   const calculatedAmount = form.paymentType === 'deposit' ? Math.round(stand.price * depositPercent / 100) : stand.price
 
   function toggleDay(day) {

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Trash2, TrendingUp, TrendingDown, Wallet, Zap } from 'lucide-react'
+import { effectiveDepositPercent } from './adminHelpers'
 
 const PAYMENT_TYPE_LABELS = { deposit: 'Seña', full: 'Total', balance: 'Saldo' }
 
@@ -33,7 +34,7 @@ export default function FinancesTab({
         // cobros separados (cada uno con su fecha real), en vez de uno solo
         // que se actualiza en silencio y pierde la fecha del segundo cobro.
         if (r.status === 'paid' && r.balancePaidAt && stand?.price) {
-          const depositPercent = Number(ev?.depositPercent) || 50
+          const depositPercent = effectiveDepositPercent(stand, ev)
           const depositAmount = Math.round(stand.price * depositPercent / 100)
           return [
             {

@@ -8,7 +8,7 @@ import {
   Eye, TrendingUp, Settings, ClipboardList, UserCheck, Sparkles, Menu, X, ClipboardCheck, Zap,
 } from 'lucide-react'
 import {
-  createUuid, normalizePhone, toEventRow, toStandRow, toProfileRow, mapProfile,
+  createUuid, normalizePhone, toEventRow, toStandRow, toProfileRow, mapProfile, effectiveDepositPercent,
 } from './admin/adminHelpers'
 import DashboardTab from './admin/DashboardTab'
 import EventsTab from './admin/EventsTab'
@@ -382,7 +382,7 @@ export default function AdminPage() {
     // real que entró.
     const stand = getStand(reservation.eventId, reservation.standId)
     const ev = events.find(e => e.id === reservation.eventId)
-    const depositPercent = Number(ev?.depositPercent) || 50
+    const depositPercent = effectiveDepositPercent(stand, ev)
     const updates = { status: newStatus, paid_at: paidAt }
     // Si venía de "Seña Paga" y ahora se cobró el resto, esa fecha se guarda
     // aparte (no pisa la fecha de la seña): así Finanzas puede mostrar los dos

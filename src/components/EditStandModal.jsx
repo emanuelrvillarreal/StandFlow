@@ -13,12 +13,17 @@ export default function EditStandModal({ stand, categories, onSave, onDelete, on
     categoryId: stand?.categoryId ?? '',
     x: stand?.x ?? 50,
     y: stand?.y ?? 50,
+    depositPercent: stand?.depositPercent ?? '',
   })
   const isNew = !stand?.id
 
   function handleSave() {
     if (!form.number.trim()) return
-    onSave({ ...stand, ...form, price: Number(form.price), x: Number(form.x), y: Number(form.y) })
+    onSave({
+      ...stand, ...form,
+      price: Number(form.price), x: Number(form.x), y: Number(form.y),
+      depositPercent: form.depositPercent === '' ? null : Number(form.depositPercent),
+    })
   }
 
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
@@ -71,6 +76,13 @@ export default function EditStandModal({ stand, categories, onSave, onDelete, on
               <option value="">Sin categoría</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Seña (%) — opcional</label>
+            <input type="number" {...f('depositPercent')} min="1" max="99" placeholder="Usa el % general del evento"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500"/>
+            <p className="text-xs text-gray-400 mt-1">Dejalo vacío para que use el % de seña general del evento. Completalo solo para que este stand puntual tenga un % distinto.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

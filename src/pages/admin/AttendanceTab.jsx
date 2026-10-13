@@ -3,6 +3,7 @@ import { ClipboardCheck, Search, Download, Check, Sparkles, Store, AlertCircle, 
 import NoticeDialog from '../../components/NoticeDialog'
 import { supabase } from '../../lib/supabase'
 import { eventDays, todayISO, formatDateTime, formatTime } from '../../lib/formatDateTime'
+import { effectiveDepositPercent } from './adminHelpers'
 
 const PAY_STYLES = {
   paid: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -108,7 +109,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
           key: `r-${r.id}`, kind: 'exhibitor', reservationId: r.id,
           name: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim() || '(sin nombre)',
           sub: [u?.businessName ? `${u?.name || ''} ${u?.lastName || ''}`.trim() : '', u?.phone].filter(Boolean).join(' · '),
-          stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand, Number(ev.depositPercent) || 50),
+          stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand, effectiveDepositPercent(stand, ev)),
           shared: !!r.shared, sharedWith: (r.sharedWith || '').trim(), instagram: (r.instagram || '').trim(),
         })
       })

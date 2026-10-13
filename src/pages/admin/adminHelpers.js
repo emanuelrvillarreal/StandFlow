@@ -92,7 +92,14 @@ export function toStandRow(stand, eventId) {
     status: stand.status,
     category_id: stand.categoryId || null,
     is_sponsor_stand: stand.sector === 'sponsor',
+    deposit_percent: stand.depositPercent ? Number(stand.depositPercent) : null,
   }
+}
+
+// % de seña a usar para un stand puntual: el que le puso el admin a ese
+// stand si lo tiene, si no el general del evento (o 50% si no hay nada).
+export function effectiveDepositPercent(stand, event) {
+  return Number(stand?.depositPercent) || Number(event?.depositPercent) || 50
 }
 
 export function createUuid() {

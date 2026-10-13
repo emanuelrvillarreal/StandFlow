@@ -640,7 +640,8 @@ export function AppProvider({ children }) {
         ...s,
         categoryId: s.category_id,
         eventId: s.event_id,
-        isSponsor: s.sector === 'sponsor'
+        isSponsor: s.sector === 'sponsor',
+        depositPercent: s.deposit_percent ?? null,
       }))
 
       const mappedReservations = (reservations || []).map(r => ({

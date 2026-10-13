@@ -27,6 +27,8 @@ function toStandRow(stand, eventId) {
     price: stand.price,
     status: stand.status,
     category_id: stand.categoryId || null,
+    is_sponsor_stand: stand.sector === 'sponsor',
+    deposit_percent: stand.depositPercent ? Number(stand.depositPercent) : null,
   }
 }
 
