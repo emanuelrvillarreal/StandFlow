@@ -678,6 +678,7 @@ export function AppProvider({ children }) {
         organizerEmail: ev.organizer_email || '',
         depositPercent: Number(ev.deposit_percent) || 50,
         reservationNote: ev.reservation_note || '',
+        notifyEmails: ev.notify_emails || '',
         requestsPaused: !!ev.requests_paused,
         sponsors: (() => {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)

@@ -77,6 +77,7 @@ export function toEventRow(event) {
     deposit_percent: Number(event.depositPercent) || 50,
     reservation_note: event.reservationNote || null,
     requests_paused: !!event.requestsPaused,
+    notify_emails: event.notifyEmails || null,
   }
 }
 

@@ -40,44 +40,71 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return jsonResponse({ error: 'No autorizado' }, 401)
 
+    // Llamada "del sistema": el trigger de la base (nueva solicitud de stand)
+    // invoca esto con la service role, porque quien crea la solicitud es el
+    // expositor, no un admin logueado en el panel. Se la deja pasar sin pedir
+    // perfil de admin; para todo lo demás se exige admin real como siempre.
+    // Se detecta mirando el campo "role" adentro del JWT (siempre dice
+    // "service_role" en ese caso) en vez de comparar el texto exacto de la
+    // clave, porque Supabase tiene más de un formato de service role key
+    // dando vueltas y no conviene depender de cuál esté activa.
+    function jwtRole(token) {
+      try {
+        const payload = token.split('.')[1]
+        const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+        return JSON.parse(json).role ?? null
+      } catch {
+        return null
+      }
+    }
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '')
+    const isSystemCall = jwtRole(bearerToken) === 'service_role'
+
     // Se valida con el token del que llama (el admin logueado en el panel),
     // no con la service role: así solo un admin real puede disparar el mail.
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      isSystemCall ? bearerToken : (Deno.env.get('SUPABASE_ANON_KEY') ?? ''),
       { global: { headers: { Authorization: authHeader } } },
     )
 
-    const { data: { user } } = await supabaseClient.auth.getUser()
-    if (!user) return jsonResponse({ error: 'No autorizado' }, 401)
-
-    const { data: profile } = await supabaseClient.from('profiles').select('role_id').eq('id', user.id).single()
-    if (profile?.role_id !== 1) return jsonResponse({ error: 'Solo un admin puede enviar esta notificación' }, 403)
+    let callerId = null
+    if (!isSystemCall) {
+      const { data: { user } } = await supabaseClient.auth.getUser()
+      if (!user) return jsonResponse({ error: 'No autorizado' }, 401)
+      const { data: profile } = await supabaseClient.from('profiles').select('role_id').eq('id', user.id).single()
+      if (profile?.role_id !== 1) return jsonResponse({ error: 'Solo un admin puede enviar esta notificación' }, 403)
+      callerId = user.id
+    }
 
     const body = await req.json()
     const {
       to, businessName, userName, eventName, mapUrl,
       eventRequestId, eventId, userId,
-      kind = 'approval', // 'approval' | 'payment' | 'expiration'
+      kind = 'approval', // 'approval' | 'payment' | 'expiration' | 'new_request'
       paymentType, amount, standNumber, standName, remaining,
+      requesterName, requesterBusiness, requesterMessage, adminUrl,
     } = body
-    if (!to || !eventName) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
+    if (!eventName) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
+    const toList = (Array.isArray(to) ? to : [to]).filter(Boolean)
+    if (toList.length === 0) return jsonResponse({ error: 'Faltan datos (to, eventName)' }, 400)
 
     const money = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
     async function logAttempt(status, errorMessage = null) {
       const detail = kind === 'payment' ? { paymentType, amount, remaining, standNumber, standName, eventName }
         : kind === 'expiration' ? { standNumber, standName, eventName, amount }
+        : kind === 'new_request' ? { requesterName, requesterBusiness, eventName }
         : { businessName, eventName }
       await supabaseClient.from('notification_log').insert({
         event_request_id: eventRequestId || null,
         event_id: eventId || null,
         user_id: userId || null,
-        to_email: to,
+        to_email: toList.join(', '),
         kind,
         status,
         error_message: errorMessage,
-        sent_by: user.id,
+        sent_by: callerId,
         subject,
         detail,
       })
@@ -113,6 +140,18 @@ serve(async (req) => {
           <p style="color:#888; font-size:13px;">Si ya lo enviaste, contactá a la organización para confirmarlo.</p>
         `,
       )
+    } else if (kind === 'new_request') {
+      subject = `Nueva solicitud de stand - ${eventName}`
+      html = wrapEmail(
+        '¡Tenés una nueva solicitud!',
+        `
+          <p>Tenés una nueva solicitud de <strong>${requesterBusiness || requesterName || 'un expositor'}</strong>${requesterBusiness && requesterName ? ` (${requesterName})` : ''} para participar en <strong>${eventName}</strong>.</p>
+          ${requesterMessage ? `<p style="background:#f4f4f7; border-radius:12px; padding:14px 18px; margin:20px 0;"><strong>Mensaje:</strong> ${requesterMessage}</p>` : ''}
+          ${adminUrl ? `<div style="text-align:center; margin: 28px 0;">
+            <a href="${adminUrl}" style="background:#2ee6d6; color:#0b0b16; padding: 12px 28px; border-radius: 999px; text-decoration:none; font-weight:700; display:inline-block;">Ver solicitud</a>
+          </div>` : ''}
+        `,
+      )
     } else {
       subject = `Aprobamos tu solicitud para ${eventName}`
       html = wrapEmail(
@@ -136,7 +175,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: 'Stands Flow <notificaciones@stands.deckaria.ar>',
-        to: [to],
+        to: toList,
         subject,
         html,
       }),

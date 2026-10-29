@@ -1,4 +1,4 @@
-import { Clock, CheckCircle, Map, TrendingUp } from 'lucide-react'
+import { Clock, CheckCircle, Map, TrendingUp, TrendingDown } from 'lucide-react'
 import { formatEventDate } from '../../lib/formatEventDate'
 
 export default function DashboardTab({
@@ -8,6 +8,7 @@ export default function DashboardTab({
   totalRevenue, totalExpenses, netRevenue, navigate,
 }) {
   const money = n => `$${n.toLocaleString('es-AR')}`
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -17,15 +18,17 @@ export default function DashboardTab({
           { label: 'Pagados', value: totalPaid, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
           { label: 'Disponibles', value: totalAvailable, icon: Map, color: 'text-blue-600 bg-blue-50' },
           { label: 'Ingresos', value: money(totalRevenue), icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Egresos', value: `-${money(totalExpenses)}`, icon: TrendingUp, color: 'text-red-600 bg-red-50' },
-          { label: 'Saldo Neto', value: money(netRevenue), icon: TrendingUp, color: 'text-violet-600 bg-violet-50' },
+          { label: 'Egresos', value: `-${money(totalExpenses)}`, icon: TrendingDown, color: 'text-red-600 bg-red-50' },
+          { label: 'Saldo Neto', value: money(netRevenue), icon: netRevenue >= 0 ? TrendingUp : TrendingDown, color: netRevenue >= 0 ? 'text-violet-600 bg-violet-50' : 'text-red-600 bg-red-50' },
         ].map(stat => (
-          <div key={stat.label} className="bg-white rounded-2xl shadow-sm border p-5">
-            <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center mb-3`}>
-              <stat.icon size={20} />
+          <div key={stat.label} className="bg-white rounded-2xl shadow-sm border p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-7 h-7 ${stat.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                <stat.icon size={14} />
+              </div>
+              <p className="text-xs font-medium text-gray-500 truncate">{stat.label}</p>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{stat.label}</p>
+            <p className="text-xl font-bold text-gray-900 break-words leading-tight">{stat.value}</p>
             {stat.sub && <p className="text-xs font-semibold text-red-500 mt-1">{stat.sub}</p>}
           </div>
         ))}

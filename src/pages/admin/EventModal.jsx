@@ -323,6 +323,14 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Avisar por mail a (nuevas solicitudes)</label>
+              <p className="text-[10px] text-gray-400 mb-2 -mt-1">Uno o varios mails separados por coma. Cada vez que llegue una solicitud de stand para este evento, les mandamos un aviso — así no hace falta estar entrando al panel.</p>
+              <input type="text" value={eventForm.notifyEmails} onChange={e => setEventForm({ ...eventForm, notifyEmails: e.target.value })}
+                placeholder="Ej: admin1@mail.com, admin2@mail.com"
+                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition text-sm" />
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Instrucciones de pago / Alias</label>
               <textarea value={eventForm.paymentInstructions} onChange={e => setEventForm({ ...eventForm, paymentInstructions: e.target.value })}
                 rows={3}

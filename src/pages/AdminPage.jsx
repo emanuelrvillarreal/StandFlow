@@ -30,7 +30,7 @@ import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
 
 const EMPTY_EVENT_FORM = {
-  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', contactMethod: 'whatsapp', organizerEmail: '', depositPercent: 50, reservationNote: '', paymentInstructions: '',
+  name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', contactMethod: 'whatsapp', organizerEmail: '', depositPercent: 50, reservationNote: '', paymentInstructions: '', notifyEmails: '',
   posterImage: null, mapImageSalon: null, mapImageGaleria: null, mapImageSponsor: null, copyFrom: 'none',
   sponsorsEnabled: false, sponsorCode: '',
 }
@@ -581,6 +581,7 @@ export default function AdminPage() {
       depositPercent: Number(event.depositPercent) || 50,
       reservationNote: event.reservationNote || '',
       paymentInstructions: event.paymentInstructions || '',
+      notifyEmails: event.notifyEmails || '',
       posterImage: event.posterImage || null,
       mapImageSalon: event.mapImage?.salon || null,
       mapImageGaleria: event.mapImage?.galeria || null,
@@ -643,6 +644,7 @@ export default function AdminPage() {
       depositPercent: Number(eventForm.depositPercent) || 50,
       reservationNote: eventForm.reservationNote || '',
       paymentInstructions: eventForm.paymentInstructions || sourceEvent?.paymentInstructions || '',
+      notifyEmails: eventForm.notifyEmails || sourceEvent?.notifyEmails || '',
       stands: sourceEvent
         ? sourceEvent.stands.map(stand => ({
           ...stand,
@@ -702,6 +704,7 @@ export default function AdminPage() {
       depositPercent: Number(eventForm.depositPercent) || 50,
       reservationNote: eventForm.reservationNote,
       paymentInstructions: eventForm.paymentInstructions,
+      notifyEmails: eventForm.notifyEmails,
       posterImage: eventForm.posterImage,
       mapImage: {
         salon: eventForm.mapImageSalon || editingEvent.mapImage?.salon || '/maps/salon.jpeg',
