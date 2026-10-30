@@ -87,7 +87,7 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${u.role_id === 1 ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'}`}>
               {u.role_id === 1 ? (u.isSysadmin ? 'Sysadmin' : 'Admin') : 'Expositor'}
             </span>

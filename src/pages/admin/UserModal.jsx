@@ -87,7 +87,8 @@ export default function UserModal({
               <div>
                 <label className={labelCls}>Stands por evento</label>
                 <input type="number" min="1" max="99" value={userForm.maxStands ?? 1}
-                  onChange={e => set('maxStands', Math.max(1, Number(e.target.value) || 1))}
+                  onChange={e => set('maxStands', e.target.value === '' ? '' : Number(e.target.value))}
+                  onBlur={e => set('maxStands', Math.max(1, Number(e.target.value) || 1))}
                   className={`${inputCls} font-bold`} />
               </div>
             )}
