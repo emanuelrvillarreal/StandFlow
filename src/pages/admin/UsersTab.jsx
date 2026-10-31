@@ -1,12 +1,16 @@
 import { useMemo, useState } from 'react'
 import { formatBirthDate, formatDateTime } from '../../lib/formatDateTime'
-import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw, Eye, ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react'
+import { exportUsersCSV } from './adminHelpers'
+import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw, Eye, ArrowDownNarrowWide, ArrowUpNarrowWide, Download } from 'lucide-react'
 
 export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, onViewUser = () => {}, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {} }) {
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState('desc')
   const [showDeleted, setShowDeleted] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [reservationFilter, setReservationFilter] = useState('all') // 'all' | 'with' | 'without'
+
+  const usersWithReservation = useMemo(() => new Set(reservations.map(r => r.userId)), [reservations])
 
   function toggleSelected(id) {
     setSelectedIds(prev => {
@@ -22,17 +26,19 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const base = !q ? users : users.filter(u => {
+    let base = !q ? users : users.filter(u => {
       const haystack = [u.name, u.lastName, u.businessName, u.email, u.phone].filter(Boolean).join(' ').toLowerCase()
       return haystack.includes(q)
     })
+    if (reservationFilter === 'with') base = base.filter(u => usersWithReservation.has(u.id))
+    if (reservationFilter === 'without') base = base.filter(u => u.role_id !== 1 && !usersWithReservation.has(u.id))
     const sorted = [...base].sort((a, b) => {
       const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
       const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
       return sortDir === 'asc' ? ta - tb : tb - ta
     })
     return sorted
-  }, [users, search, sortDir])
+  }, [users, search, sortDir, reservationFilter, usersWithReservation])
 
   return (
     <div className="space-y-3">
@@ -65,7 +71,27 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
         </button>
       </div>
 
-      {search && (
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1">
+          {[
+            { key: 'all', label: 'Todos' },
+            { key: 'with', label: 'Con reserva' },
+            { key: 'without', label: 'Sin reserva' },
+          ].map(opt => (
+            <button key={opt.key} onClick={() => setReservationFilter(opt.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${reservationFilter === opt.key ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => exportUsersCSV(filteredUsers, `usuarios${reservationFilter !== 'all' ? `-${reservationFilter === 'with' ? 'con-reserva' : 'sin-reserva'}` : ''}.csv`)}
+          className="ml-auto flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 transition">
+          <Download size={14} /> Exportar CSV
+        </button>
+      </div>
+
+      {(search || reservationFilter !== 'all') && (
         <p className="text-xs text-gray-400 -mt-1">{filteredUsers.length} resultado{filteredUsers.length === 1 ? '' : 's'}</p>
       )}
 

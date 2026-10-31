@@ -58,6 +58,17 @@ export function exportRequestsCSV(requests, events, users) {
   URL.revokeObjectURL(url)
 }
 
+export function exportUsersCSV(users, filename = 'usuarios.csv') {
+  const header = ['Nombre', 'Apellido', 'Emprendimiento', 'Email', 'Teléfono']
+  const rows = users.map(u => [u.name ?? '', u.lastName ?? '', u.businessName ?? '', u.email ?? '', u.phone ?? ''])
+  const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function toEventRow(event) {
   return {
     id: event.id,
