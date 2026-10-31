@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [filterEventId, setFilterEventId] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
+  const [reservationSearch, setReservationSearch] = useState('')
   const [reservationPage, setReservationPage] = useState(1)
   const [reservationSort, setReservationSort] = useState('newest') // newest | oldest
   const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6', details: '' })
@@ -173,11 +174,20 @@ export default function AdminPage() {
   const totalExpenses = (expenses || []).filter(e => e.type !== 'income').reduce((s, e) => s + Number(e.amount), 0)
   const netRevenue = totalRevenue + totalManualIncome - totalExpenses
 
+  const reservationSearchQ = reservationSearch.trim().toLowerCase()
   const filteredRes = reservations
     .filter(r => {
       if (filterEventId !== 'all' && r.eventId !== filterEventId) return false
       if (filterStatus !== 'all' && r.status !== filterStatus) return false
       if (filterCategory !== 'all' && r.categoryId !== filterCategory) return false
+      if (reservationSearchQ) {
+        const user = users.find(u => u.id === r.userId)
+        const haystack = [
+          user?.name, user?.lastName, user?.businessName, user?.email, user?.phone,
+          r.standName, getStand(r.eventId, r.standId)?.number,
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!haystack.includes(reservationSearchQ)) return false
+      }
       return true
     })
     .sort((a, b) => {
@@ -1430,6 +1440,7 @@ export default function AdminPage() {
             filterEventId={filterEventId} setFilterEventId={setFilterEventId}
             filterStatus={filterStatus} setFilterStatus={setFilterStatus}
             filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+            reservationSearch={reservationSearch} setReservationSearch={setReservationSearch}
             reservationSort={reservationSort} setReservationSort={setReservationSort}
             filteredRes={filteredRes} paginatedRes={paginatedRes}
             reservationsPerPage={reservationsPerPage}

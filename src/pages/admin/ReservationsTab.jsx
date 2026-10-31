@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays } from 'lucide-react'
+import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, Search } from 'lucide-react'
 import { STATUS_LABELS, STATUS_STYLES, exportCSV } from './adminHelpers'
 import { formatDateTime, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
@@ -152,6 +152,7 @@ export default function ReservationsTab({
   filterEventId, setFilterEventId,
   filterStatus, setFilterStatus,
   filterCategory, setFilterCategory,
+  reservationSearch, setReservationSearch,
   reservationSort, setReservationSort,
   filteredRes, paginatedRes, reservationsPerPage = 10,
   reservationPageSafe, totalReservationPages, setReservationPage,
@@ -214,6 +215,17 @@ export default function ReservationsTab({
       <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase sm:hidden">
           <Filter size={13} /> Filtros
+        </div>
+
+        <div className="relative">
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={reservationSearch}
+            onChange={e => { setReservationSearch(e.target.value); goToPage(1) }}
+            placeholder="Buscar por expositor, emprendimiento, email, teléfono o stand..."
+            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
