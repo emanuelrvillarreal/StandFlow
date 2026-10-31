@@ -72,7 +72,11 @@ export default function MapPage() {
     : 0
   const quotaReached = !!currentUser && !isAdmin && usedStands >= quota
   const stands = event.stands.filter(s => s.sector === sector)
-  const filteredStands = filterStatus === 'all' ? stands : stands.filter(s => s.status === filterStatus)
+  // Los expositores solo ven los stands disponibles: a alguien que no conoce
+  // el sistema le resulta confuso ver mezclados los ocupados. El admin sigue
+  // viendo todos, los necesita para gestionar el evento.
+  const visibleStands = isAdmin ? stands : stands.filter(s => s.status === 'available')
+  const filteredStands = filterStatus === 'all' ? visibleStands : visibleStands.filter(s => s.status === filterStatus)
 
   // Sponsors es un mapa aparte: solo lo ve el admin (para armarlo). Los expositores
   // no lo ven ni pueden reservar ahí (la base tampoco les devuelve esos stands).
@@ -251,19 +255,22 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="bg-ink-900 border-b border-ink-700">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex gap-4 overflow-x-auto">
-          {Object.entries(stats).map(([key, count]) => (
-            <button key={key} onClick={() => setFilterStatus(filterStatus===key?'all':key)}
-              className={`flex items-center gap-1.5 text-xs font-medium whitespace-nowrap px-2.5 py-1.5 rounded-full transition ${filterStatus===key?'ring-2 ring-offset-1 ring-offset-ink-900':'opacity-70 hover:opacity-100'}`}
-              style={filterStatus===key?{background:STATUS_COLORS[key]+'20',color:STATUS_COLORS[key],ringColor:STATUS_COLORS[key]}:{color:STATUS_COLORS[key]}}>
-              <span className="w-2 h-2 rounded-full" style={{background:STATUS_COLORS[key]}}/>
-              {STATUS_LABELS[key]}: {count}
-            </button>
-          ))}
+      {/* Stats bar: solo el admin, a los expositores ya les filtramos la
+          lista para que solo vean disponibles, no necesitan elegir estado. */}
+      {isAdmin && (
+        <div className="bg-ink-900 border-b border-ink-700">
+          <div className="max-w-5xl mx-auto px-4 py-2 flex gap-4 overflow-x-auto">
+            {Object.entries(stats).map(([key, count]) => (
+              <button key={key} onClick={() => setFilterStatus(filterStatus===key?'all':key)}
+                className={`flex items-center gap-1.5 text-xs font-medium whitespace-nowrap px-2.5 py-1.5 rounded-full transition ${filterStatus===key?'ring-2 ring-offset-1 ring-offset-ink-900':'opacity-70 hover:opacity-100'}`}
+                style={filterStatus===key?{background:STATUS_COLORS[key]+'20',color:STATUS_COLORS[key],ringColor:STATUS_COLORS[key]}:{color:STATUS_COLORS[key]}}>
+                <span className="w-2 h-2 rounded-full" style={{background:STATUS_COLORS[key]}}/>
+                {STATUS_LABELS[key]}: {count}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 max-w-5xl mx-auto w-full px-4 py-4">
         {/* Category legend */}
