@@ -263,6 +263,11 @@ function reducer(state, action) {
         ),
       }
     }
+    case 'UPDATE_RESERVATION_AMOUNT':
+      return {
+        ...state,
+        reservations: state.reservations.map(r => r.id === action.id ? { ...r, amount: action.amount } : r),
+      }
     case 'DELETE_RESERVATION': {
       const res = state.reservations.find(r => r.id === action.id)
       if (!res) return state

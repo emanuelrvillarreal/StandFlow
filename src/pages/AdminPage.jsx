@@ -452,6 +452,21 @@ export default function AdminPage() {
     }
   }
 
+  async function handleEditReservationAmount(reservation, newAmount) {
+    const amount = Math.max(0, Number(newAmount) || 0)
+    const { error } = await supabase.from('reservations').update({ amount }).eq('id', reservation.id)
+    if (error) {
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo actualizar el importe: ${error.message}`, tone: 'danger' })
+      return
+    }
+
+    dispatch({ type: 'UPDATE_RESERVATION_AMOUNT', id: reservation.id, amount })
+
+    if (reservationDetail?.reservation.id === reservation.id) {
+      setReservationDetail({ ...reservationDetail, reservation: { ...reservationDetail.reservation, amount } })
+    }
+  }
+
   function handleDeleteReservation(reservation) {
     if (reservation.status !== 'cancelled') {
       showNotice({ title: 'No se puede eliminar', message: 'Primero tenés que cancelar la reserva para poder eliminarla.', tone: 'danger' })
@@ -1449,6 +1464,7 @@ export default function AdminPage() {
             getEvent={getEvent} getStand={getStand} getUser={getUser}
             onViewDetail={setReservationDetail}
             onStatusChange={handleStatusChange}
+            onEditAmount={handleEditReservationAmount}
             onDeleteReservation={handleDeleteReservation}
             onNotifyPaid={notifyReservationPaid}
             onResendPaymentEmail={handleResendPaymentEmail}

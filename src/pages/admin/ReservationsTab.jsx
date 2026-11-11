@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, Search } from 'lucide-react'
+import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, Search, Pencil } from 'lucide-react'
 import { STATUS_LABELS, STATUS_STYLES, exportCSV } from './adminHelpers'
 import { formatDateTime, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
@@ -19,7 +19,7 @@ const CARD_ACCENT = {
   reserved: { border: 'border-l-blue-400', header: 'from-blue-50 to-transparent' },
 }
 
-function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {} }) {
+function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onEditAmount, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {} }) {
   const btnRef = useRef(null)
   const menuRef = useRef(null)
   // Si no entra hacia abajo (la tarjeta está al final de la lista, pegada al
@@ -50,6 +50,10 @@ function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDeta
             <button onClick={() => { onViewDetail(); onClose() }}
               className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left">
               <Eye size={14} className="text-gray-400" /> Ver detalle
+            </button>
+            <button onClick={() => { onEditAmount(); onClose() }}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left">
+              <Pencil size={14} className="text-gray-400" /> Editar importe
             </button>
             {r.status === 'pending' && (
               <button onClick={() => { onStatusChange('deposit_paid'); onClose() }}
@@ -157,12 +161,14 @@ export default function ReservationsTab({
   filteredRes, paginatedRes, reservationsPerPage = 10,
   reservationPageSafe, totalReservationPages, setReservationPage,
   getEvent, getStand, getUser,
-  onViewDetail, onStatusChange, onDeleteReservation, onNotifyPaid,
+  onViewDetail, onStatusChange, onEditAmount = () => {}, onDeleteReservation, onNotifyPaid,
   onResendPaymentEmail = () => {},
   onSendExpirationWarning = () => {},
   orphanStands = [], onFreeStand = () => {}, onFreeAllOrphanStands = () => {},
 }) {
   const [openMenuId, setOpenMenuId] = useState(null)
+  const [editingAmount, setEditingAmount] = useState(null) // reserva cuyo importe se está editando
+  const [amountDraft, setAmountDraft] = useState('')
   const visibleOrphans = filterEventId === 'all'
     ? orphanStands
     : orphanStands.filter(s => s.eventId === filterEventId)
@@ -320,6 +326,7 @@ export default function ReservationsTab({
                       onClose={() => setOpenMenuId(null)}
                       onViewDetail={() => onViewDetail({ reservation: r, event: ev, stand, user, category: cat })}
                       onStatusChange={(status) => onStatusChange(r.id, status)}
+                      onEditAmount={() => { setEditingAmount(r); setAmountDraft(String(r.amount ?? 0)) }}
                       onDeleteReservation={() => onDeleteReservation(r)}
                       onNotifyPaid={() => onNotifyPaid(r, ev, stand, user)}
                       onResendPaymentEmail={() => onResendPaymentEmail(r)}
@@ -372,6 +379,30 @@ export default function ReservationsTab({
       )}
 
       <Pager page={reservationPageSafe} totalPages={totalReservationPages} onChange={goToPage} />
+
+      {editingAmount && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
+            <h3 className="font-bold text-gray-900">Editar importe</h3>
+            <p className="text-sm text-gray-400 mt-0.5">Stand {editingAmount.standName} — {getUser(editingAmount.userId)?.businessName || getUser(editingAmount.userId)?.name}</p>
+            <div className="mt-4">
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 ml-0.5">Importe ($)</label>
+              <input type="number" min="0" autoFocus value={amountDraft} onChange={e => setAmountDraft(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none transition text-sm font-bold" />
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setEditingAmount(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition">
+                Cancelar
+              </button>
+              <button onClick={() => { onEditAmount(editingAmount, amountDraft); setEditingAmount(null) }}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 transition">
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
