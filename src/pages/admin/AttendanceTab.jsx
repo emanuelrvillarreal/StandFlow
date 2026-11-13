@@ -109,7 +109,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
           key: `r-${r.id}`, kind: 'exhibitor', reservationId: r.id,
           name: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim() || '(sin nombre)',
           sub: [u?.businessName ? `${u?.name || ''} ${u?.lastName || ''}`.trim() : '', u?.phone].filter(Boolean).join(' · '),
-          stand: stand?.number ?? '—', createdAt: r.createdAt, pay: paymentInfo(r, stand, effectiveDepositPercent(stand, ev)),
+          stand: stand?.number ?? '—', standName: (r.standName || '').trim(), createdAt: r.createdAt, pay: paymentInfo(r, stand, effectiveDepositPercent(stand, ev)),
           shared: !!r.shared, sharedWith: (r.sharedWith || '').trim(), instagram: (r.instagram || '').trim(),
         })
       })
@@ -121,7 +121,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
           key: `m-${m.id}`, kind: 'sponsor', memberId: m.id,
           name: `${m.firstName} ${m.lastName}`,
           sub: `DNI ${m.dni} · ${m.phone}`,
-          stand: stand?.number ?? '—', createdAt: g.createdAt,
+          stand: stand?.number ?? '—', standName: '', createdAt: g.createdAt,
           shared: false, sharedWith: '', instagram: '',
           pay: { key: 'free', label: 'Sin cargo', paid: 0, total: 0, debt: 0 },
         })
@@ -142,7 +142,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
 
   const visible = rows.filter(r => {
     const q = search.trim().toLowerCase()
-    if (q && !`${r.name} ${r.sub} ${r.stand} ${r.sharedWith} ${r.instagram}`.toLowerCase().includes(q)) return false
+    if (q && !`${r.name} ${r.sub} ${r.stand} ${r.standName} ${r.sharedWith} ${r.instagram}`.toLowerCase().includes(q)) return false
     if (filter === 'present') return presentByKey.has(r.key)
     if (filter === 'absent') return !presentByKey.has(r.key)
     if (filter === 'unpaid') return r.kind === 'exhibitor' && r.pay.key !== 'paid'
@@ -181,11 +181,11 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
   }
 
   function exportCsv() {
-    const header = ['Evento', 'Día', 'Tipo', 'Nombre', 'Contacto', 'Stand', 'Compartido', 'Comparte con', 'Instagram', 'Se anotó', 'Pago', 'Cobrado', 'Total', 'Debe', 'Presente', 'Hora de ingreso']
+    const header = ['Evento', 'Día', 'Tipo', 'Nombre', 'Contacto', 'Stand', 'Nombre de stand', 'Compartido', 'Comparte con', 'Instagram', 'Se anotó', 'Pago', 'Cobrado', 'Total', 'Debe', 'Presente', 'Hora de ingreso']
     const lines = rows.map(r => {
       const a = presentByKey.get(r.key)
       return [
-        ev?.name, day, r.kind === 'sponsor' ? 'Sponsor' : 'Expositor', r.name, r.sub, r.stand,
+        ev?.name, day, r.kind === 'sponsor' ? 'Sponsor' : 'Expositor', r.name, r.sub, r.stand, r.standName,
         r.kind === 'sponsor' ? '' : (r.shared ? 'Sí' : 'No'), r.sharedWith, r.instagram,
         formatDateTime(r.createdAt),
         r.pay.label, r.pay.paid, r.pay.total, r.pay.debt, a ? 'Sí' : 'No', a ? formatTime(a.checked_at) : '',
@@ -260,7 +260,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, emprendimiento o stand"
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, emprendimiento, nombre de stand o número"
             className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
         </div>
         <div className="flex gap-1.5 flex-wrap">
@@ -308,7 +308,10 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
                       </p>
                       {r.sub && <p className="text-xs text-gray-400">{r.sub}</p>}
                     </td>
-                    <td className="px-4 py-3 font-bold text-gray-800">{r.stand}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-gray-800">{r.stand}</p>
+                      {r.standName && <p className="text-xs text-gray-400">{r.standName}</p>}
+                    </td>
                     <td className="px-4 py-3">
                       {r.kind === 'sponsor' ? (
                         <span className="text-gray-300">—</span>
