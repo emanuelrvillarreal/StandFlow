@@ -336,8 +336,13 @@ export default function AdminPage() {
     })
   }
 
-  function handleResendPaymentEmail(reservation) {
-    sendPaymentEmail(reservation)
+  async function handleResendPaymentEmail(reservation) {
+    // Se relee el importe real desde la base antes de mandar el mail: si se
+    // editó el importe (botón "Editar importe") en otra pestaña/sesión, el
+    // estado local de esta pestaña puede estar desactualizado y mandaría el
+    // monto viejo en el mail.
+    const { data } = await supabase.from('reservations').select('amount, payment_type').eq('id', reservation.id).single()
+    sendPaymentEmail({ ...reservation, amount: data?.amount ?? reservation.amount, paymentType: data?.payment_type ?? reservation.paymentType })
   }
 
   // Mail de "tu reserva está por vencer" (72 hs sin seña/pago). Es manual
