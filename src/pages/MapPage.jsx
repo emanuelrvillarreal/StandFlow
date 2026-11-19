@@ -71,6 +71,7 @@ export default function MapPage() {
     ? state.reservations.filter(r => r.userId === currentUser.id && r.eventId === event.id && ACTIVE_STATUSES.includes(r.status)).length
     : 0
   const quotaReached = !!currentUser && !isAdmin && usedStands >= quota
+  const reservationsPaused = !!event.reservationsPaused && !isAdmin
   const stands = event.stands.filter(s => s.sector === sector)
   // Los expositores solo ven los stands disponibles: a alguien que no conoce
   // el sistema le resulta confuso ver mezclados los ocupados. El admin sigue
@@ -292,6 +293,12 @@ export default function MapPage() {
           </div>
         )}
 
+        {reservationsPaused && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-300">
+            La organización pausó las reservas de este evento por ahora. Todavía podés ver el mapa, pero no se puede tomar ningún stand hasta que se reanuden.
+          </div>
+        )}
+
         {quotaReached && (
           <div className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 mb-4 text-sm text-accent-soft">
             Ya tenés {quota === 1 ? 'tu stand' : `tus ${usedStands} stands`} en este evento. {quota === 1 ? 'Cada expositor puede reservar un solo stand.' : `Podés reservar hasta ${quota}.`} Si necesitás más lugares, pedíselo a la organización.
@@ -391,6 +398,7 @@ export default function MapPage() {
           event={event}
           quotaReached={quotaReached}
           quota={quota}
+          reservationsPaused={reservationsPaused}
           onClose={() => setSelectedStand(null)}
           onReserve={(s) => {
             setSelectedStand(null)
@@ -398,6 +406,7 @@ export default function MapPage() {
               navigate('/login', { state: { from: location } })
               return
             }
+            if (reservationsPaused) return
             setReservingStand(s)
           }}
         />

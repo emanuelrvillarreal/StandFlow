@@ -685,6 +685,7 @@ export function AppProvider({ children }) {
         reservationNote: ev.reservation_note || '',
         notifyEmails: ev.notify_emails || '',
         requestsPaused: !!ev.requests_paused,
+        reservationsPaused: !!ev.reservations_paused,
         sponsors: (() => {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
           return { enabled: !!cfg?.enabled, code: cfg?.code || '', image: cfg?.image || null }

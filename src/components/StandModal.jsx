@@ -3,7 +3,7 @@ import { X, Tag, DollarSign, Hash, Info } from 'lucide-react'
 const STATUS_LABELS = { available:'Disponible', pending:'Pendiente', reserved:'Reservado', blocked:'Bloqueado' }
 const STATUS_STYLES = { available:'text-accent-soft bg-accent/10 border border-accent/30', pending:'text-yellow-300 bg-yellow-500/10 border border-yellow-500/30', reserved:'text-red-300 bg-red-500/10 border border-red-500/30', blocked:'text-muted bg-ink-700 border border-ink-600' }
 
-export default function StandModal({ stand, category, event, onClose, onReserve, quotaReached = false, quota = 1 }) {
+export default function StandModal({ stand, category, event, onClose, onReserve, quotaReached = false, quota = 1, reservationsPaused = false }) {
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-ink-800 border border-ink-600 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
@@ -81,6 +81,11 @@ export default function StandModal({ stand, category, event, onClose, onReserve,
             <button disabled
               className="w-full bg-ink-700 text-muted font-semibold py-3 rounded-xl cursor-not-allowed">
               Solo para Sponsors
+            </button>
+          ) : stand.status === 'available' && reservationsPaused ? (
+            <button disabled
+              className="w-full bg-ink-700 text-muted font-semibold py-3 rounded-xl cursor-not-allowed">
+              Las reservas están pausadas por ahora
             </button>
           ) : stand.status === 'available' && quotaReached ? (
             <button disabled

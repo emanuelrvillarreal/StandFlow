@@ -1,7 +1,7 @@
-import { Plus, Calendar, MapPin, Clock, Edit2, Map, Trash2, ClipboardCheck, Pause, Play } from 'lucide-react'
+import { Plus, Calendar, MapPin, Clock, Edit2, Map, Trash2, ClipboardCheck, Pause, Play, Lock, Unlock } from 'lucide-react'
 import { formatEventDate } from '../../lib/formatEventDate'
 
-export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditEvent, onDeleteEvent, onOpenAttendance = () => {}, onToggleRequestsPaused = () => {} }) {
+export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditEvent, onDeleteEvent, onOpenAttendance = () => {}, onToggleRequestsPaused = () => {}, onToggleReservationsPaused = () => {} }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -36,6 +36,11 @@ export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditE
                       Solicitudes pausadas
                     </span>
                   )}
+                  {ev.reservationsPaused && (
+                    <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                      Reservas pausadas
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
                   <span className="flex items-center gap-1"><MapPin size={12} /> {ev.location}</span>
@@ -52,6 +57,12 @@ export default function EventsTab({ events, navigate, onOpenCreateEvent, onEditE
                   {ev.requestsPaused ? 'Reanudar' : 'Pausar'}
                 </button>
               )}
+              <button onClick={() => onToggleReservationsPaused(ev)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-xs font-semibold ${ev.reservationsPaused ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-red-700 bg-red-50 hover:bg-red-100'}`}
+                title={ev.reservationsPaused ? 'Reanudar reservas' : 'Pausar reservas (frena a todos, incluso ya aprobados)'}>
+                {ev.reservationsPaused ? <Unlock size={16} /> : <Lock size={16} />}
+                {ev.reservationsPaused ? 'Reanudar reservas' : 'Pausar reservas'}
+              </button>
               <button onClick={() => onOpenAttendance(ev)}
                 className="flex items-center gap-1.5 px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition text-xs font-semibold" title="Asistencia y pagos">
                 <ClipboardCheck size={16} /> Asistencia

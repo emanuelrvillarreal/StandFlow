@@ -874,6 +874,19 @@ export default function AdminPage() {
     dispatch({ type: 'UPDATE_EVENT', event: { ...event, requestsPaused: paused } })
   }
 
+  // Freno total: ni siquiera los expositores ya aprobados pueden reservar un
+  // stand nuevo mientras esté pausado (a diferencia de requestsPaused, que
+  // solo frena a los que todavía no entraron al evento).
+  async function handleToggleReservationsPaused(event) {
+    const paused = !event.reservationsPaused
+    const { error } = await supabase.from('events').update({ reservations_paused: paused }).eq('id', event.id)
+    if (error) {
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo ${paused ? 'pausar' : 'reanudar'} las reservas: ${error.message}`, tone: 'danger' })
+      return
+    }
+    dispatch({ type: 'UPDATE_EVENT', event: { ...event, reservationsPaused: paused } })
+  }
+
   function requestDeleteEvent(event) {
     requestConfirm({
       title: '¿Eliminar este evento?',
@@ -1418,6 +1431,7 @@ export default function AdminPage() {
             onEditEvent={openEditEventModal}
             onDeleteEvent={requestDeleteEvent}
             onToggleRequestsPaused={handleToggleRequestsPaused}
+            onToggleReservationsPaused={handleToggleReservationsPaused}
             onOpenAttendance={(ev) => { setAttendanceEventId(ev.id); setTab('attendance') }}
           />
         )}
