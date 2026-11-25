@@ -325,14 +325,14 @@ export default function InsuranceTab({ events, reservations, users, categories =
   function exportXlsx() {
     const header = [
       'Evento', 'Stand', 'Nombre de stand', 'Categoría',
-      'Nombre cuenta', 'Apellido cuenta', 'Email cuenta', 'Teléfono cuenta',
+      'Nombre cuenta', 'Apellido cuenta', 'DNI/CUIT cuenta', 'Email cuenta', 'Teléfono cuenta',
       'Rol seguro', 'Nombre asegurado', 'Apellido asegurado', 'DNI', 'Fecha de nacimiento',
       'Cargado por el admin', 'Monto a cobrar', 'Cobrado',
     ]
     const lines = rows.flatMap(row => {
       const base = [
         event?.name, row.stand?.number ?? '—', row.reservation.standName || '', row.category?.name || '',
-        row.user?.name || '', row.user?.lastName || '', row.user?.email || '', row.user?.phone || '',
+        row.user?.name || '', row.user?.lastName || '', row.user?.dni || '', row.user?.email || '', row.user?.phone || '',
       ]
       const people = [...(row.titular ? [row.titular] : []), ...row.companions]
       if (people.length === 0) return [[...base, 'Sin cargar', '', '', '', '', '', '', '']]
@@ -344,7 +344,7 @@ export default function InsuranceTab({ events, reservations, users, categories =
       ])
     })
     const ws = XLSX.utils.aoa_to_sheet([header, ...lines])
-    ws['!cols'] = [20, 8, 20, 14, 14, 14, 24, 14, 12, 16, 16, 12, 14, 12, 14, 10].map(w => ({ wch: w }))
+    ws['!cols'] = [20, 8, 20, 14, 14, 14, 14, 24, 14, 12, 16, 16, 12, 14, 12, 14, 10].map(w => ({ wch: w }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Seguros')
     XLSX.writeFile(wb, `seguros-${(event?.name || 'evento').replace(/\s+/g, '-')}.xlsx`)
@@ -431,6 +431,7 @@ export default function InsuranceTab({ events, reservations, users, categories =
                   <p className="text-xs text-gray-400 truncate flex items-center gap-2.5 flex-wrap">
                     {row.user && <span>{row.user.name} {row.user.lastName} · {row.user.email}</span>}
                     {row.user?.phone && <span className="flex items-center gap-1 flex-shrink-0"><Phone size={11} /> {row.user.phone}</span>}
+                    {row.user?.dni && <span className="flex items-center gap-1 flex-shrink-0"><Hash size={11} /> {row.user.dni} <span className="text-gray-300">(cuenta)</span></span>}
                     {!row.user && '—'}
                   </p>
                 </div>

@@ -131,6 +131,7 @@ export function toProfileRow(user) {
     business_name: user.businessName || null,
     max_stands: Math.max(1, Number(user.maxStands) || 1),
     birth_date: user.birthDate || null,
+    dni: user.dni?.trim() || null,
     role: Number(user.role_id) === 1 ? 'admin' : 'user',
     role_id: Number(user.role_id),
   }

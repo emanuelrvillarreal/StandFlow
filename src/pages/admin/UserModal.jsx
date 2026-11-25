@@ -69,6 +69,12 @@ export default function UserModal({
             </div>
           </div>
 
+          <div>
+            <label className={labelCls}>DNI / CUIT</label>
+            <input type="text" value={userForm.dni || ''} onChange={e => set('dni', e.target.value)}
+              placeholder="Identificación fiscal de la cuenta (opcional)" className={inputCls} />
+          </div>
+
           {!editingUser && (
             <div>
               <label className={labelCls}>Contraseña inicial</label>

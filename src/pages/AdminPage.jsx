@@ -97,6 +97,7 @@ export default function AdminPage() {
     role_id: 2,
     maxStands: 1,
     birthDate: '',
+    dni: '',
   })
   const [userError, setUserError] = useState('')
   const [savingUser, setSavingUser] = useState(false)
@@ -1034,7 +1035,7 @@ export default function AdminPage() {
   function openCreateUserModal() {
     setEditingUser(null)
     setUserError('')
-    setUserForm({ name: '', lastName: '', businessName: '', email: '', phone: '', password: '', role_id: 2, maxStands: 1, birthDate: '' })
+    setUserForm({ name: '', lastName: '', businessName: '', email: '', phone: '', password: '', role_id: 2, maxStands: 1, birthDate: '', dni: '' })
     setShowUserModal(true)
   }
 
@@ -1051,6 +1052,7 @@ export default function AdminPage() {
       role_id: user.role_id || 2,
       maxStands: user.maxStands || 1,
       birthDate: user.birthDate || '',
+      dni: user.dni || '',
     })
     setShowUserModal(true)
   }
