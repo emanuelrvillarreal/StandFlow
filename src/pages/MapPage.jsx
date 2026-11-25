@@ -317,7 +317,9 @@ export default function MapPage() {
 
         {reservationsPaused && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-300">
-            {event.status === 'past'
+            {isViewer
+              ? 'Tu cuenta es de solo lectura (Visualizador): podés ver el mapa completo, pero no podés tomar stands.'
+              : event.status === 'past'
               ? 'Este evento ya finalizó. Todavía podés ver el mapa, pero no se puede tomar ningún stand.'
               : 'La organización pausó las reservas de este evento por ahora. Todavía podés ver el mapa, pero no se puede tomar ningún stand hasta que se reanuden.'}
           </div>

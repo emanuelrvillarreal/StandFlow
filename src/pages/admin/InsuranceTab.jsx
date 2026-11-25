@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import {
   Shield, UserPlus, Trash2, Download, Search, CheckCircle2, AlertTriangle, DollarSign,
-  Users2, Hash, Calendar, ChevronLeft, ChevronRight, Store,
+  Users2, Hash, Calendar, ChevronLeft, ChevronRight, Store, Pencil, X, Check, Phone, Tag,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatBirthDate } from '../../lib/formatDateTime'
@@ -67,7 +67,39 @@ function initials(a, b) {
   return `${(a || '?')[0] || ''}${(b || '')[0] || ''}`.toUpperCase()
 }
 
-function PersonRow({ person, title, badgeCls, readOnly, onTogglePaid, onDelete }) {
+const editInputCls = 'px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+
+function PersonRow({
+  person, title, badgeCls, readOnly, onTogglePaid, onDelete,
+  isEditing, editForm, setEditForm, onStartEdit, onSaveEdit, onCancelEdit, saving,
+}) {
+  if (isEditing) {
+    return (
+      <div className="bg-violet-50/60 border border-violet-200 rounded-xl px-3.5 py-3 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <input type="text" placeholder="Nombre" value={editForm.first_name} onChange={e => setEditForm({ ...editForm, first_name: e.target.value })} className={editInputCls} />
+          <input type="text" placeholder="Apellido" value={editForm.last_name} onChange={e => setEditForm({ ...editForm, last_name: e.target.value })} className={editInputCls} />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="text" placeholder="DNI" value={editForm.dni} onChange={e => setEditForm({ ...editForm, dni: e.target.value })} className={editInputCls} />
+          <input type="date" value={editForm.birth_date} onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })} className={editInputCls} />
+        </div>
+        <input type="number" min="0" placeholder="Monto a cobrarle por fuera (opcional)" value={editForm.amount}
+          onChange={e => setEditForm({ ...editForm, amount: e.target.value })} className={`w-full ${editInputCls}`} />
+        <div className="flex gap-2 pt-0.5">
+          <button onClick={onSaveEdit} disabled={saving}
+            className="flex items-center gap-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <Check size={13} /> {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+          <button onClick={onCancelEdit}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-100 transition">
+            <X size={13} /> Cancelar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-gray-50 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 flex-wrap">
       <div className="flex items-center gap-3 min-w-0">
@@ -93,6 +125,11 @@ function PersonRow({ person, title, badgeCls, readOnly, onTogglePaid, onDelete }
             <DollarSign size={12} /> ${Number(person.amount).toLocaleString('es-AR')} · {person.paid ? 'Cobrado' : 'Marcar cobrado'}
           </button>
         )}
+        {!readOnly && (
+          <button onClick={onStartEdit} className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition" title="Corregir datos">
+            <Pencil size={14} />
+          </button>
+        )}
         {!readOnly && onDelete && (
           <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
             <Trash2 size={14} />
@@ -106,7 +143,7 @@ function PersonRow({ person, title, badgeCls, readOnly, onTogglePaid, onDelete }
 // Gestión de seguros (titular + acompañantes) por evento. Se usa antes del
 // evento, para juntar los datos que hay que mandarle a la compañía de
 // seguros — distinto de Asistencia, que es el día del evento.
-export default function InsuranceTab({ events, reservations, users, readOnly = false, onAddExpenseRecord = () => {}, onRemoveExpenseRecord = () => {} }) {
+export default function InsuranceTab({ events, reservations, users, categories = [], readOnly = false, onAddExpenseRecord = () => {}, onRemoveExpenseRecord = () => {} }) {
   const sortedEvents = useMemo(() => {
     const active = events.filter(ev => ev.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
     const past = events.filter(ev => ev.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -135,6 +172,9 @@ export default function InsuranceTab({ events, reservations, users, readOnly = f
   const [personForm, setPersonForm] = useState(EMPTY_PERSON_FORM)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [editingPersonId, setEditingPersonId] = useState(null)
+  const [editForm, setEditForm] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => { setPage(1) }, [eventId, filter, search])
 
@@ -158,12 +198,13 @@ export default function InsuranceTab({ events, reservations, users, readOnly = f
   const rows = useMemo(() => eventReservations.map(r => {
     const stand = event?.stands.find(s => s.id === r.standId)
     const user = users.find(u => u.id === r.userId)
+    const category = categories.find(c => c.id === stand?.categoryId)
     const people = peopleByReservation[r.id] || []
     const titular = people.find(p => p.role === 'titular')
     const companions = people.filter(p => p.role === 'acompanante')
-    return { reservation: r, stand, user, titular, companions, complete: !!titular }
+    return { reservation: r, stand, category, user, titular, companions, complete: !!titular }
   }).sort((a, b) => String(a.stand?.number ?? '').localeCompare(String(b.stand?.number ?? ''), 'es', { numeric: true })),
-    [eventReservations, peopleByReservation, event, users])
+    [eventReservations, peopleByReservation, event, users, categories])
 
   const visibleRows = rows.filter(row => {
     if (filter === 'complete' && !row.complete) return false
@@ -212,6 +253,40 @@ export default function InsuranceTab({ events, reservations, users, readOnly = f
     const { error } = await supabase.from('reservation_insurance').delete().eq('id', personId)
     if (error) return
     setPeopleByReservation(prev => ({ ...prev, [reservationId]: (prev[reservationId] || []).filter(p => p.id !== personId) }))
+  }
+
+  function startEditPerson(person) {
+    setErr('')
+    setEditingPersonId(person.id)
+    setEditForm({
+      first_name: person.first_name || '', last_name: person.last_name || '',
+      dni: person.dni || '', birth_date: person.birth_date || '', amount: person.amount ?? '',
+    })
+  }
+
+  function cancelEditPerson() {
+    setEditingPersonId(null)
+    setEditForm(null)
+  }
+
+  // Corrige datos cargados mal (DNI, fecha de nacimiento, nombre) sin tener
+  // que borrar y volver a crear a la persona.
+  async function handleSaveEditPerson(reservationId, personId) {
+    if (!editForm.first_name.trim() || !editForm.last_name.trim() || !editForm.dni.trim() || !editForm.birth_date) {
+      setErr('Completá nombre, apellido, DNI y fecha de nacimiento.')
+      return
+    }
+    setSavingEdit(true)
+    setErr('')
+    const { data, error } = await supabase.from('reservation_insurance').update({
+      first_name: editForm.first_name.trim(), last_name: editForm.last_name.trim(),
+      dni: editForm.dni.trim(), birth_date: editForm.birth_date,
+      amount: editForm.amount === '' ? null : Number(editForm.amount),
+    }).eq('id', personId).select().single()
+    setSavingEdit(false)
+    if (error) { setErr(`No se pudo guardar la corrección: ${error.message}`); return }
+    setPeopleByReservation(prev => ({ ...prev, [reservationId]: (prev[reservationId] || []).map(p => p.id === personId ? data : p) }))
+    cancelEditPerson()
   }
 
   // Al marcar cobrado, se crea un ingreso manual en Finanzas (ligado al
@@ -337,9 +412,17 @@ export default function InsuranceTab({ events, reservations, users, readOnly = f
                 <div className="min-w-0">
                   <p className="font-bold text-gray-900 truncate flex items-center gap-1.5">
                     <Store size={13} className="text-gray-400 flex-shrink-0" /> {row.reservation.standName || 'Sin nombre'}
+                    {row.category && (
+                      <span className="flex-shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: row.category.color + '20', color: row.category.color }}>
+                        <Tag size={10} /> {row.category.name}
+                      </span>
+                    )}
                   </p>
-                  <p className="text-xs text-gray-400 truncate">
-                    {row.user ? `${row.user.name} ${row.user.lastName} · ${row.user.email}` : '—'}
+                  <p className="text-xs text-gray-400 truncate flex items-center gap-2.5 flex-wrap">
+                    {row.user && <span>{row.user.name} {row.user.lastName} · {row.user.email}</span>}
+                    {row.user?.phone && <span className="flex items-center gap-1 flex-shrink-0"><Phone size={11} /> {row.user.phone}</span>}
+                    {!row.user && '—'}
                   </p>
                 </div>
               </div>
@@ -358,12 +441,20 @@ export default function InsuranceTab({ events, reservations, users, readOnly = f
               {row.titular && (
                 <PersonRow person={row.titular} title="Titular" badgeCls="bg-violet-100 text-violet-700" readOnly={readOnly}
                   onTogglePaid={() => handleTogglePaid(row, row.titular)}
-                  onDelete={row.titular.added_by_admin ? () => handleDeletePerson(row.reservation.id, row.titular.id) : null} />
+                  onDelete={row.titular.added_by_admin ? () => handleDeletePerson(row.reservation.id, row.titular.id) : null}
+                  isEditing={editingPersonId === row.titular.id} editForm={editForm} setEditForm={setEditForm}
+                  onStartEdit={() => startEditPerson(row.titular)}
+                  onSaveEdit={() => handleSaveEditPerson(row.reservation.id, row.titular.id)}
+                  onCancelEdit={cancelEditPerson} saving={savingEdit} />
               )}
               {row.companions.map(p => (
                 <PersonRow key={p.id} person={p} title="Acompañante" badgeCls="bg-gray-200 text-gray-600" readOnly={readOnly}
                   onTogglePaid={() => handleTogglePaid(row, p)}
-                  onDelete={() => handleDeletePerson(row.reservation.id, p.id)} />
+                  onDelete={() => handleDeletePerson(row.reservation.id, p.id)}
+                  isEditing={editingPersonId === p.id} editForm={editForm} setEditForm={setEditForm}
+                  onStartEdit={() => startEditPerson(p)}
+                  onSaveEdit={() => handleSaveEditPerson(row.reservation.id, p.id)}
+                  onCancelEdit={cancelEditPerson} saving={savingEdit} />
               ))}
 
               {!readOnly && (addingFor === row.reservation.id ? (

@@ -1682,7 +1682,7 @@ export default function AdminPage() {
 
         {tab === 'insurance' && (
           <InsuranceTab
-            events={events} reservations={reservations} users={users}
+            events={events} reservations={reservations} users={users} categories={categories}
             readOnly={isViewer}
             onAddExpenseRecord={expense => dispatch({ type: 'ADD_EXPENSE', expense })}
             onRemoveExpenseRecord={id => dispatch({ type: 'DELETE_EXPENSE', id })}
