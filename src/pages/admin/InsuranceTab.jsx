@@ -323,19 +323,28 @@ export default function InsuranceTab({ events, reservations, users, categories =
   }
 
   function exportXlsx() {
-    const header = ['Evento', 'Stand', 'Nombre de stand', 'Rol', 'Nombre', 'Apellido', 'DNI', 'Fecha de nacimiento', 'Cargado por el admin', 'Monto a cobrar', 'Cobrado']
+    const header = [
+      'Evento', 'Stand', 'Nombre de stand', 'Categoría',
+      'Nombre cuenta', 'Apellido cuenta', 'Email cuenta', 'Teléfono cuenta',
+      'Rol seguro', 'Nombre asegurado', 'Apellido asegurado', 'DNI', 'Fecha de nacimiento',
+      'Cargado por el admin', 'Monto a cobrar', 'Cobrado',
+    ]
     const lines = rows.flatMap(row => {
+      const base = [
+        event?.name, row.stand?.number ?? '—', row.reservation.standName || '', row.category?.name || '',
+        row.user?.name || '', row.user?.lastName || '', row.user?.email || '', row.user?.phone || '',
+      ]
       const people = [...(row.titular ? [row.titular] : []), ...row.companions]
-      if (people.length === 0) return [[event?.name, row.stand?.number ?? '—', row.reservation.standName || '', 'Sin cargar', '', '', '', '', '', '', '']]
+      if (people.length === 0) return [[...base, 'Sin cargar', '', '', '', '', '', '', '']]
       return people.map(p => [
-        event?.name, row.stand?.number ?? '—', row.reservation.standName || '',
+        ...base,
         p.role === 'titular' ? 'Titular' : 'Acompañante',
         p.first_name, p.last_name, p.dni, p.birth_date ? formatBirthDate(p.birth_date) : '', p.added_by_admin ? 'Sí' : 'No',
         p.amount ?? '', p.amount ? (p.paid ? 'Sí' : 'No') : '',
       ])
     })
     const ws = XLSX.utils.aoa_to_sheet([header, ...lines])
-    ws['!cols'] = [20, 8, 20, 12, 16, 16, 12, 14, 12, 14, 10].map(w => ({ wch: w }))
+    ws['!cols'] = [20, 8, 20, 14, 14, 14, 24, 14, 12, 16, 16, 12, 14, 12, 14, 10].map(w => ({ wch: w }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Seguros')
     XLSX.writeFile(wb, `seguros-${(event?.name || 'evento').replace(/\s+/g, '-')}.xlsx`)
