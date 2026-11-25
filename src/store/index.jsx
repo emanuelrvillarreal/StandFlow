@@ -639,7 +639,7 @@ export function AppProvider({ children }) {
       }
 
       // Mapear propiedades para que coincidan con el código (snake_case -> camelCase)
-      const mappedCategories = (categories || []).map(cat => ({ ...cat }))
+      const mappedCategories = (categories || []).map(cat => ({ ...cat, eventId: cat.event_id }))
 
       const mappedStands = (stands || []).map(s => ({
         ...s,
@@ -686,6 +686,8 @@ export function AppProvider({ children }) {
         notifyEmails: ev.notify_emails || '',
         requestsPaused: !!ev.requests_paused,
         reservationsPaused: !!ev.reservations_paused,
+        hiddenFromList: !!ev.hidden_from_list,
+        themeAccent: ev.theme_accent || '',
         sponsors: (() => {
           const cfg = (sponsorSettingRows || []).find(c => c.event_id === ev.id)
           return { enabled: !!cfg?.enabled, code: cfg?.code || '', image: cfg?.image || null }

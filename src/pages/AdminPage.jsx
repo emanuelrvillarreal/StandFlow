@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { supabase, createIsolatedAuthClient } from '../lib/supabase'
 import { compressAndUploadImage } from '../lib/uploadImage'
 import {
   LayoutDashboard, Users, Calendar, Tag, LogOut,
-  Eye, TrendingUp, Settings, ClipboardList, UserCheck, Sparkles, Menu, X, ClipboardCheck, Zap,
+  Eye, TrendingUp, Settings, ClipboardList, UserCheck, Sparkles, Menu, X, ClipboardCheck, Zap, Shield,
 } from 'lucide-react'
 import {
   createUuid, normalizePhone, toEventRow, toStandRow, toProfileRow, mapProfile, effectiveDepositPercent,
@@ -20,6 +20,7 @@ import RequestsTab from './admin/RequestsTab'
 import SponsorsTab from './admin/SponsorsTab'
 import SponsorMemberModal from './admin/SponsorMemberModal'
 import AttendanceTab from './admin/AttendanceTab'
+import InsuranceTab from './admin/InsuranceTab'
 import SettingsTab from './admin/SettingsTab'
 import ReservationDetailModal from './admin/ReservationDetailModal'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -28,11 +29,12 @@ import UserModal from './admin/UserModal'
 import UserDetailModal from './admin/UserDetailModal'
 import BlockUserModal from './admin/BlockUserModal'
 import EventModal from './admin/EventModal'
+import QuickReservationModal from './admin/QuickReservationModal'
 
 const EMPTY_EVENT_FORM = {
   name: '', date: '', endDate: '', location: '', status: 'upcoming', requiresApproval: false, allowPartialDays: false, whatsapp: '', contactMethod: 'whatsapp', organizerEmail: '', depositPercent: 50, reservationNote: '', paymentInstructions: '', notifyEmails: '',
   posterImage: null, mapImageSalon: null, mapImageGaleria: null, mapImageSponsor: null, copyFrom: 'none',
-  sponsorsEnabled: false, sponsorCode: '',
+  sponsorsEnabled: false, sponsorCode: '', themeAccent: '',
 }
 
 export default function AdminPage() {
@@ -41,6 +43,11 @@ export default function AdminPage() {
   const location = useLocation()
   const { events, reservations, users, categories, currentUser, expenses } = state
   const eventRequests = state.eventRequests || []
+  // El rol "Visualizador" entra al panel admin: ve usuarios, stands/mapa y el
+  // estado de pago de las reservas, y puede crear/editar/borrar stands en el
+  // mapa. No puede tocar usuarios/eventos ni ver montos de dinero (Dashboard
+  // sin plata, sin acceso a Finanzas).
+  const isViewer = currentUser?.role_id === 3
   const [tab, setTab] = useState('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [attendanceEventId, setAttendanceEventId] = useState('')
@@ -48,13 +55,26 @@ export default function AdminPage() {
   const [savingMember, setSavingMember] = useState(false)
   const [memberError, setMemberError] = useState('')
   const [filterEventId, setFilterEventId] = useState('all')
+  const didDefaultReservationsFilterRef = useRef(false)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [reservationSearch, setReservationSearch] = useState('')
   const [reservationPage, setReservationPage] = useState(1)
   const [reservationSort, setReservationSort] = useState('newest') // newest | oldest
   const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6', details: '' })
-  const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', type: 'expense' })
+  const [categoryEventId, setCategoryEventId] = useState(null)
+  const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', type: 'expense', eventId: '' })
+  const [dashboardEventId, setDashboardEventId] = useState(null)
+  const EMPTY_QUICK_RES_FORM = {
+    eventId: '', standId: '', categoryId: '',
+    isNewUser: true, existingUserId: '',
+    name: '', lastName: '', businessName: '', email: '', phone: '', password: '',
+    paymentStatus: 'paid', amount: '',
+  }
+  const [showQuickResModal, setShowQuickResModal] = useState(false)
+  const [quickResForm, setQuickResForm] = useState(EMPTY_QUICK_RES_FORM)
+  const [quickResError, setQuickResError] = useState('')
+  const [savingQuickRes, setSavingQuickRes] = useState(false)
   const [editingCat, setEditingCat] = useState(null)
   const [settingsForm, setSettingsForm] = useState(state.settings)
   const [showEventModal, setShowEventModal] = useState(false)
@@ -173,6 +193,77 @@ export default function AdminPage() {
   const totalManualIncome = (expenses || []).filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0)
   const totalExpenses = (expenses || []).filter(e => e.type !== 'income').reduce((s, e) => s + Number(e.amount), 0)
   const netRevenue = totalRevenue + totalManualIncome - totalExpenses
+
+  // Dashboard por evento: si hay un solo evento activo (no finalizado) se
+  // muestra directo; si hay más de uno, aparece un selector (por defecto el
+  // primero). Los finalizados quedan al final, por si hace falta consultarlos.
+  const activeEventsSorted = events.filter(e => e.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+  const pastEventsSorted = events.filter(e => e.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+  const dashboardEventOptions = [...activeEventsSorted, ...pastEventsSorted]
+  useEffect(() => {
+    if (dashboardEventId === 'all') return
+    if (dashboardEventId && events.some(e => e.id === dashboardEventId)) return
+    setDashboardEventId(activeEventsSorted[0]?.id || 'all')
+  }, [events, dashboardEventId, activeEventsSorted])
+
+  // Categorías: cada una pertenece a un evento (así editar una no afecta a
+  // los demás eventos). Por defecto se elige el evento activo o, si no hay,
+  // el primero de la lista (igual orden que en Dashboard/Eventos).
+  useEffect(() => {
+    if (categoryEventId && events.some(e => e.id === categoryEventId)) return
+    setCategoryEventId(dashboardEventOptions[0]?.id || null)
+  }, [events, categoryEventId, dashboardEventOptions])
+
+  // Reservas: arranca mostrando el evento activo (no "Todos"), para no mezclar
+  // de entrada con eventos ya finalizados. Solo se autoelige una vez; si el
+  // admin elige "Todos" a propósito más adelante, no se le vuelve a pisar.
+  useEffect(() => {
+    if (didDefaultReservationsFilterRef.current) return
+    if (dashboardEventOptions.length === 0) return
+    didDefaultReservationsFilterRef.current = true
+    setFilterEventId(dashboardEventOptions[0].id)
+  }, [dashboardEventOptions])
+
+  // Finanzas: mismo criterio — arranca en el evento activo; el resto queda
+  // disponible como histórico eligiéndolo del selector o "Todos los eventos".
+  // Los movimientos manuales "generales" (sin evento) se cuentan siempre.
+  const [financesEventId, setFinancesEventId] = useState(null)
+  useEffect(() => {
+    if (financesEventId === 'all') return
+    if (financesEventId && events.some(e => e.id === financesEventId)) return
+    setFinancesEventId(dashboardEventOptions[0]?.id || 'all')
+  }, [events, financesEventId, dashboardEventOptions])
+
+  const financesReservations = financesEventId === 'all' ? reservations : reservations.filter(r => r.eventId === financesEventId)
+  // Un movimiento manual cargado para un evento puntual solo se ve en ese
+  // evento (no se mete en los demás). Los "generales" (sin evento elegido)
+  // solo se ven en "Todos los eventos", que es la suma de todo.
+  const financesExpensesList = financesEventId === 'all' ? (expenses || []) : (expenses || []).filter(e => e.event_id === financesEventId)
+  const financesRevenue = financesReservations.filter(r => r.status === 'paid' || r.status === 'deposit_paid').reduce((s, r) => s + r.amount, 0)
+  const financesManualIncome = financesExpensesList.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0)
+  const financesManualExpenses = financesExpensesList.filter(e => e.type !== 'income').reduce((s, e) => s + Number(e.amount), 0)
+  const financesNetRevenue = financesRevenue + financesManualIncome - financesManualExpenses
+
+  const dashboardReservations = dashboardEventId === 'all' ? reservations : reservations.filter(r => r.eventId === dashboardEventId)
+  const dashboardStands = dashboardEventId === 'all' ? allStands : allStands.filter(s => s.eventId === dashboardEventId)
+  const dashboardExpenses = dashboardEventId === 'all' ? (expenses || []) : (expenses || []).filter(e => e.event_id === dashboardEventId)
+  const dashboardTotalAvailable = dashboardStands.filter(s => s.status === 'available' && s.sector !== 'sponsor').length
+  const dashboardTotalPending = dashboardReservations.filter(r => r.status === 'pending').length
+  const dashboardTotalDeposit = dashboardReservations.filter(r => r.status === 'deposit_paid').length
+  const dashboardTotalPaid = dashboardReservations.filter(r => r.status === 'paid').length
+  const dashboardPendingAmount = dashboardReservations
+    .filter(r => r.status === 'pending')
+    .reduce((s, r) => s + (dashboardStands.find(st => st.id === r.standId)?.price ?? r.amount ?? 0), 0)
+  const dashboardDepositRemaining = dashboardReservations
+    .filter(r => r.status === 'deposit_paid')
+    .reduce((s, r) => {
+      const total = dashboardStands.find(st => st.id === r.standId)?.price ?? r.amount * 2
+      return s + Math.max(0, total - r.amount)
+    }, 0)
+  const dashboardRevenue = dashboardReservations.filter(r => r.status === 'paid' || r.status === 'deposit_paid').reduce((s, r) => s + r.amount, 0)
+  const dashboardManualIncome = dashboardExpenses.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0)
+  const dashboardManualExpenses = dashboardExpenses.filter(e => e.type !== 'income').reduce((s, e) => s + Number(e.amount), 0)
+  const dashboardNetRevenue = dashboardRevenue + dashboardManualIncome - dashboardManualExpenses
 
   const reservationSearchQ = reservationSearch.trim().toLowerCase()
   const filteredRes = reservations
@@ -514,13 +605,18 @@ export default function AdminPage() {
 
   async function handleAddCategory() {
     if (!catForm.name.trim()) return
-    const newCat = { id: createUuid(), ...catForm }
-    const { error } = await supabase.from('categories').insert(newCat)
+    if (!categoryEventId) {
+      showNotice({ title: 'No se pudo crear', message: 'Elegí primero a qué evento pertenece esta categoría.', tone: 'danger' })
+      return
+    }
+    const id = createUuid()
+    const row = { id, name: catForm.name, color: catForm.color, details: catForm.details || null, event_id: categoryEventId }
+    const { error } = await supabase.from('categories').insert(row)
     if (error) {
       showNotice({ title: 'No se pudo crear', message: `No se pudo crear la categoría: ${error.message}`, tone: 'danger' })
       return
     }
-    dispatch({ type: 'ADD_CATEGORY', category: newCat })
+    dispatch({ type: 'ADD_CATEGORY', category: { id, name: catForm.name, color: catForm.color, details: catForm.details || '', eventId: categoryEventId } })
     setCatForm({ name: '', color: '#3B82F6', details: '' })
   }
 
@@ -561,6 +657,7 @@ export default function AdminPage() {
       description: expenseForm.description,
       amount: Number(expenseForm.amount),
       type: expenseForm.type,
+      event_id: expenseForm.eventId || null,
       created_at: new Date().toISOString()
     }
     const { error } = await supabase.from('expenses').insert(newExpense)
@@ -569,7 +666,7 @@ export default function AdminPage() {
       return
     }
     dispatch({ type: 'ADD_EXPENSE', expense: newExpense })
-    setExpenseForm({ description: '', amount: '', type: expenseForm.type })
+    setExpenseForm({ description: '', amount: '', type: expenseForm.type, eventId: expenseForm.eventId })
   }
 
   function handleDeleteExpense(expense) {
@@ -619,6 +716,7 @@ export default function AdminPage() {
       sponsorsEnabled: !!event.sponsors?.enabled,
       sponsorCode: event.sponsors?.code || '',
       mapImageSponsor: event.sponsors?.image || null,
+      themeAccent: event.themeAccent || '',
     })
     setShowEventModal(true)
   }
@@ -666,7 +764,9 @@ export default function AdminPage() {
         ? sourceEvent.mapImage
         : {
           salon: eventForm.mapImageSalon || '/maps/salon.jpeg',
-          galeria: eventForm.mapImageGaleria || '/maps/galeria.jpeg',
+          // La Galería es opcional: si no se sube nada, no se le pone un
+          // placeholder (eso hacía que el sector apareciera igual, vacío).
+          galeria: eventForm.mapImageGaleria || null,
         },
       whatsapp: eventForm.whatsapp || sourceEvent?.whatsapp || state.settings?.whatsappNumber || '',
       contactMethod: eventForm.contactMethod || sourceEvent?.contactMethod || 'whatsapp',
@@ -675,6 +775,7 @@ export default function AdminPage() {
       reservationNote: eventForm.reservationNote || '',
       paymentInstructions: eventForm.paymentInstructions || sourceEvent?.paymentInstructions || '',
       notifyEmails: eventForm.notifyEmails || sourceEvent?.notifyEmails || '',
+      themeAccent: eventForm.themeAccent || sourceEvent?.themeAccent || '',
       stands: sourceEvent
         ? sourceEvent.stands.map(stand => ({
           ...stand,
@@ -735,10 +836,11 @@ export default function AdminPage() {
       reservationNote: eventForm.reservationNote,
       paymentInstructions: eventForm.paymentInstructions,
       notifyEmails: eventForm.notifyEmails,
+      themeAccent: eventForm.themeAccent || '',
       posterImage: eventForm.posterImage,
       mapImage: {
         salon: eventForm.mapImageSalon || editingEvent.mapImage?.salon || '/maps/salon.jpeg',
-        galeria: eventForm.mapImageGaleria || editingEvent.mapImage?.galeria || '/maps/galeria.jpeg',
+        galeria: eventForm.mapImageGaleria || editingEvent.mapImage?.galeria || null,
       },
     }
 
@@ -887,6 +989,18 @@ export default function AdminPage() {
     dispatch({ type: 'UPDATE_EVENT', event: { ...event, reservationsPaused: paused } })
   }
 
+  // Solo el sysadmin decide si un evento aparece en la página pública de
+  // eventos (por ejemplo, para ocultar uno viejo ya finalizado sin borrarlo).
+  async function handleToggleHiddenFromList(event) {
+    const hidden = !event.hiddenFromList
+    const { error } = await supabase.from('events').update({ hidden_from_list: hidden }).eq('id', event.id)
+    if (error) {
+      showNotice({ title: 'No se pudo actualizar', message: `No se pudo ${hidden ? 'ocultar' : 'mostrar'} el evento: ${error.message}`, tone: 'danger' })
+      return
+    }
+    dispatch({ type: 'UPDATE_EVENT', event: { ...event, hiddenFromList: hidden } })
+  }
+
   function requestDeleteEvent(event) {
     requestConfirm({
       title: '¿Eliminar este evento?',
@@ -1009,6 +1123,102 @@ export default function AdminPage() {
       setShowUserModal(false)
     } finally {
       setSavingUser(false)
+    }
+  }
+
+  // Carga rápida: para alguien que pagó o avisó directo al admin y nunca pasó
+  // por el sistema. Crea (si hace falta) el usuario, toma el stand y guarda la
+  // reserva ya con el estado de pago que corresponda, todo en un solo paso.
+  function openQuickResModal() {
+    const defaultEventId = (filterEventId && filterEventId !== 'all' ? filterEventId : null) || dashboardEventOptions[0]?.id || ''
+    setQuickResForm({ ...EMPTY_QUICK_RES_FORM, eventId: defaultEventId })
+    setQuickResError('')
+    setShowQuickResModal(true)
+  }
+
+  async function handleCreateQuickReservation() {
+    setQuickResError('')
+    const ev = events.find(e => e.id === quickResForm.eventId)
+    const stand = ev?.stands.find(s => s.id === quickResForm.standId)
+    if (!ev || !stand) { setQuickResError('Elegí el evento y el stand.'); return }
+    if (!quickResForm.categoryId) { setQuickResError('Elegí una categoría.'); return }
+
+    setSavingQuickRes(true)
+    try {
+      let userId = quickResForm.existingUserId
+      let businessName = quickResForm.businessName.trim()
+      let personName = ''
+
+      if (quickResForm.isNewUser) {
+        if (!quickResForm.name.trim() || !quickResForm.lastName.trim() || !quickResForm.email.trim()) {
+          setQuickResError('Completá nombre, apellido y email de la persona.')
+          return
+        }
+        if (quickResForm.password && quickResForm.password.length < 6) {
+          setQuickResError('La contraseña tiene que tener al menos 6 caracteres.')
+          return
+        }
+        const authClient = createIsolatedAuthClient()
+        const password = quickResForm.password.trim() || crypto.randomUUID().replace(/-/g, '').slice(0, 14)
+        const { data, error: signUpError } = await authClient.auth.signUp({
+          email: quickResForm.email.trim(),
+          password,
+          options: { data: { name: quickResForm.name, lastName: quickResForm.lastName, phone: quickResForm.phone } },
+        })
+        if (signUpError) { setQuickResError(signUpError.message); return }
+        if (!data.user?.id) { setQuickResError('Supabase no devolvió el usuario creado. Revisá la configuración de confirmación por email.'); return }
+
+        userId = data.user.id
+        const newUser = {
+          id: userId, name: quickResForm.name.trim(), lastName: quickResForm.lastName.trim(),
+          businessName, email: quickResForm.email.trim(), phone: quickResForm.phone.trim(),
+          role_id: 2, maxStands: 1,
+        }
+        const { error: profileError } = await supabase.from('profiles').upsert(toProfileRow(newUser), { onConflict: 'id' })
+        if (profileError) { setQuickResError(profileError.message); return }
+        personName = `${newUser.name} ${newUser.lastName}`.trim()
+      } else {
+        if (!userId) { setQuickResError('Elegí un usuario existente o cargá uno nuevo.'); return }
+        const existing = users.find(u => u.id === userId)
+        businessName = businessName || existing?.businessName || ''
+        personName = existing ? `${existing.name} ${existing.lastName}`.trim() : ''
+      }
+
+      const depositPercent = effectiveDepositPercent(stand, ev)
+      const defaultAmount = quickResForm.paymentStatus === 'deposit_paid' ? Math.round(stand.price * depositPercent / 100) : stand.price
+      const amount = quickResForm.amount !== '' ? Number(quickResForm.amount) : defaultAmount
+      const nowIso = new Date().toISOString()
+      const category = categories.find(c => c.id === quickResForm.categoryId)
+
+      const { data: standRows, error: standError } = await supabase
+        .from('stands')
+        .update({ status: quickResForm.paymentStatus === 'pending' ? 'pending' : 'reserved', category_id: quickResForm.categoryId })
+        .eq('id', stand.id).eq('status', 'available')
+        .select('id')
+      if (standError) { setQuickResError(`No se pudo tomar el stand: ${standError.message}`); return }
+      if (!standRows || standRows.length === 0) { setQuickResError('Ese stand ya no está disponible. Elegí otro.'); return }
+
+      const reservationRow = {
+        id: createUuid(), event_id: ev.id, stand_id: stand.id, user_id: userId,
+        stand_name: businessName || personName || 'Sin nombre',
+        shared: false, shared_with: '', instagram: '',
+        category_id: quickResForm.categoryId, category_details: category?.details || null,
+        status: quickResForm.paymentStatus,
+        amount, payment_type: quickResForm.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
+        created_at: nowIso, paid_at: quickResForm.paymentStatus !== 'pending' ? nowIso : null,
+      }
+      const { error: resError } = await supabase.from('reservations').insert(reservationRow)
+      if (resError) {
+        await supabase.from('stands').update({ status: 'available', category_id: null }).eq('id', stand.id)
+        setQuickResError(`No se pudo guardar la reserva: ${resError.message}`)
+        return
+      }
+
+      await reloadData()
+      setShowQuickResModal(false)
+      showNotice({ title: 'Reserva cargada', itemLabel: `Stand ${stand.number} — ${businessName || personName}`, message: 'Se guardó la reserva correctamente.', tone: 'success' })
+    } finally {
+      setSavingQuickRes(false)
     }
   }
 
@@ -1341,11 +1551,12 @@ export default function AdminPage() {
     r.status === 'pending' && events.find(e => e.id === r.eventId)?.requiresApproval
   ).length
 
-  const TABS = [
+  const ALL_TABS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'events', label: 'Eventos', icon: Calendar },
     { id: 'requests', label: 'Solicitudes de stand', icon: UserCheck, badge: pendingRequestsCount },
     { id: 'attendance', label: 'Asistencia', icon: ClipboardCheck },
+    { id: 'insurance', label: 'Seguros', icon: Shield },
     { id: 'sponsors', label: 'Sponsors', icon: Sparkles, badge: 0 },
     { id: 'reservations', label: 'Reservas', icon: ClipboardList },
     { id: 'finances', label: 'Finanzas', icon: TrendingUp },
@@ -1353,6 +1564,10 @@ export default function AdminPage() {
     { id: 'users', label: 'Usuarios', icon: Users },
     { id: 'settings', label: 'Ajustes', icon: Settings },
   ]
+  // El visualizador no ve Finanzas (es todo dinero), ni Sponsors/Ajustes (son
+  // de gestión, no de consulta del día a día).
+  const VIEWER_TAB_IDS = ['dashboard', 'events', 'requests', 'attendance', 'insurance', 'reservations', 'categories', 'users']
+  const TABS = isViewer ? ALL_TABS.filter(t => VIEWER_TAB_IDS.includes(t.id)) : ALL_TABS
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative">
@@ -1416,11 +1631,13 @@ export default function AdminPage() {
       <div key={tab} className="anim-rise">
         {tab === 'dashboard' && (
           <DashboardTab
-            events={events} reservations={reservations} categories={categories}
-            totalPending={totalPending} totalDeposit={totalDeposit} totalPaid={totalPaid}
-            totalPendingAmount={totalPendingAmount} totalDepositRemaining={totalDepositRemaining}
-            totalAvailable={totalAvailable} totalRevenue={totalRevenue} totalExpenses={totalExpenses}
-            netRevenue={netRevenue} navigate={navigate}
+            events={dashboardEventOptions} reservations={dashboardReservations} allReservations={reservations} categories={categories}
+            selectedEventId={dashboardEventId} onSelectEventId={setDashboardEventId}
+            totalPending={dashboardTotalPending} totalDeposit={dashboardTotalDeposit} totalPaid={dashboardTotalPaid}
+            totalPendingAmount={dashboardPendingAmount} totalDepositRemaining={dashboardDepositRemaining}
+            totalAvailable={dashboardTotalAvailable} totalRevenue={dashboardRevenue} totalExpenses={dashboardManualExpenses}
+            netRevenue={dashboardNetRevenue} navigate={navigate}
+            hideAmounts={isViewer}
           />
         )}
 
@@ -1432,7 +1649,10 @@ export default function AdminPage() {
             onDeleteEvent={requestDeleteEvent}
             onToggleRequestsPaused={handleToggleRequestsPaused}
             onToggleReservationsPaused={handleToggleReservationsPaused}
+            onToggleHiddenFromList={handleToggleHiddenFromList}
+            isSysadmin={!!currentUser?.isSysadmin}
             onOpenAttendance={(ev) => { setAttendanceEventId(ev.id); setTab('attendance') }}
+            readOnly={isViewer}
           />
         )}
 
@@ -1446,6 +1666,7 @@ export default function AdminPage() {
             notificationLog={notificationLog}
             loadingNotificationLog={loadingNotificationLog}
             onLoadNotificationLog={loadNotificationLog}
+            readOnly={isViewer}
           />
         )}
 
@@ -1455,6 +1676,16 @@ export default function AdminPage() {
             sponsorRegistrations={state.sponsorRegistrations || []}
             initialEventId={attendanceEventId}
             onStatusChange={handleStatusChange}
+            readOnly={isViewer}
+          />
+        )}
+
+        {tab === 'insurance' && (
+          <InsuranceTab
+            events={events} reservations={reservations} users={users}
+            readOnly={isViewer}
+            onAddExpenseRecord={expense => dispatch({ type: 'ADD_EXPENSE', expense })}
+            onRemoveExpenseRecord={id => dispatch({ type: 'DELETE_EXPENSE', id })}
           />
         )}
 
@@ -1491,31 +1722,36 @@ export default function AdminPage() {
             orphanStands={orphanStands}
             onFreeStand={requestFreeStand}
             onFreeAllOrphanStands={requestFreeAllOrphanStands}
+            onOpenQuickReservation={openQuickResModal}
+            readOnly={isViewer}
           />
         )}
 
         {tab === 'finances' && (
           <FinancesTab
-            expenses={expenses} expenseForm={expenseForm} setExpenseForm={setExpenseForm}
+            expenses={financesExpensesList} expenseForm={expenseForm} setExpenseForm={setExpenseForm}
             onAddExpense={handleAddExpense} onDeleteExpense={handleDeleteExpense}
-            reservations={reservations} events={events} users={users}
-            totalRevenue={totalRevenue} totalManualIncome={totalManualIncome}
-            totalExpenses={totalExpenses} netRevenue={netRevenue}
+            reservations={financesReservations} events={dashboardEventOptions} users={users}
+            selectedEventId={financesEventId} onSelectEventId={setFinancesEventId}
+            totalRevenue={financesRevenue} totalManualIncome={financesManualIncome}
+            totalExpenses={financesManualExpenses} netRevenue={financesNetRevenue}
           />
         )}
 
         {tab === 'categories' && (
           <CategoriesTab
             categories={categories} reservations={reservations}
+            events={dashboardEventOptions} selectedEventId={categoryEventId} onSelectEventId={setCategoryEventId}
             catForm={catForm} setCatForm={setCatForm} onAddCategory={handleAddCategory}
             editingCat={editingCat} setEditingCat={setEditingCat}
             onSaveCat={handleSaveCat} onDeleteCategory={handleDeleteCategory}
+            readOnly={isViewer}
           />
         )}
 
         {tab === 'users' && (
           <UsersTab
-            users={users} reservations={reservations}
+            users={users} reservations={reservations} events={events} eventRequests={eventRequests}
             onOpenCreateUser={openCreateUserModal}
             onOpenEditUser={openEditUserModal}
             onDeleteUser={handleDeleteUser}
@@ -1528,6 +1764,7 @@ export default function AdminPage() {
             onBlockUser={openBlockUserModal}
             onUnblockUser={handleUnblockUser}
             onViewUser={setViewingUser}
+            readOnly={isViewer}
           />
         )}
 
@@ -1549,6 +1786,7 @@ export default function AdminPage() {
         onNotifyPaid={notifyReservationPaid}
         onResendPaymentEmail={handleResendPaymentEmail}
         onSendExpirationWarning={handleSendExpirationWarning}
+        readOnly={isViewer}
       />
 
       <UserModal
@@ -1595,6 +1833,19 @@ export default function AdminPage() {
         uploadingImage={uploadingImage}
         onClose={() => { setShowEventModal(false); setEditingEvent(null) }}
         onSave={handleSaveEvent}
+      />
+
+      <QuickReservationModal
+        open={showQuickResModal}
+        events={dashboardEventOptions}
+        categories={categories}
+        users={users}
+        form={quickResForm}
+        setForm={setQuickResForm}
+        error={quickResError}
+        saving={savingQuickRes}
+        onClose={() => setShowQuickResModal(false)}
+        onSave={handleCreateQuickReservation}
       />
 
       <ConfirmDialog

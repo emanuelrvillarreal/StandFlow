@@ -10,6 +10,7 @@ import MapLabel from '../components/MapLabel'
 import EditLabelModal from '../components/EditLabelModal'
 import EventAccessGate from '../components/EventAccessGate'
 import { getEventAccess } from '../lib/eventAccess'
+import { getEventThemeVars } from '../lib/eventTheme'
 import { ArrowLeft, Edit3, Plus, Layers, Info, Type } from 'lucide-react'
 import NoticeDialog from '../components/NoticeDialog'
 
@@ -41,7 +42,7 @@ export default function MapPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { state, dispatch } = useApp()
-  const { events, categories, currentUser } = state
+  const { events, categories: allCategories, currentUser } = state
   const event = events.find(e => e.id === eventId)
   const mapRef = useRef(null)
 
@@ -57,31 +58,52 @@ export default function MapPage() {
 
   if (!event) return <div className="min-h-screen bg-ink-950 text-muted p-8 text-center">Evento no encontrado.</div>
 
+  // Si el evento eligió un color propio, se deriva toda la paleta a partir de
+  // ese único color (ver src/lib/eventTheme.js); si no, queda la de Deckaria.
+  const themeVars = getEventThemeVars(event.themeAccent)
+  // Cada evento tiene sus propias categorías (no se comparten entre eventos).
+  const categories = allCategories.filter(c => c.eventId === event.id)
+
   // Evento con confirmación: solo entran los aprobados (y el admin).
   const access = getEventAccess({ event, user: currentUser, requests: state.eventRequests, reservations: state.reservations })
   if (access.status !== 'open' && access.status !== 'approved') {
-    return <EventAccessGate event={event} access={access} />
+    return (
+      <div style={themeVars || undefined}>
+        <EventAccessGate event={event} access={access} />
+      </div>
+    )
   }
 
   const isAdmin = currentUser?.role_id === 1
+  // El visualizador ve lo mismo que el admin (todos los stands, el sector de
+  // sponsors, etc.) pero no puede editar nada ni reservar: isStaff gobierna
+  // visibilidad, isAdmin solo gobierna lo que se puede modificar.
+  const isViewer = currentUser?.role_id === 3
+  const isStaff = isAdmin || isViewer
   // Cupo: cada expositor tiene 1 stand por evento salvo que el admin le dé más.
   const ACTIVE_STATUSES = ['pending', 'deposit_paid', 'paid', 'reserved']
   const quota = currentUser?.maxStands || 1
   const usedStands = currentUser
     ? state.reservations.filter(r => r.userId === currentUser.id && r.eventId === event.id && ACTIVE_STATUSES.includes(r.status)).length
     : 0
-  const quotaReached = !!currentUser && !isAdmin && usedStands >= quota
-  const reservationsPaused = !!event.reservationsPaused && !isAdmin
+  const quotaReached = !!currentUser && !isStaff && usedStands >= quota
+  // Un evento ya finalizado frena las reservas igual que "Pausar reservas",
+  // sin que el admin se tenga que acordar de tocar ese switch aparte. El
+  // visualizador tampoco reserva nunca (es de solo lectura).
+  const reservationsPaused = ((!!event.reservationsPaused || event.status === 'past') && !isAdmin) || isViewer
   const stands = event.stands.filter(s => s.sector === sector)
   // Los expositores solo ven los stands disponibles: a alguien que no conoce
-  // el sistema le resulta confuso ver mezclados los ocupados. El admin sigue
-  // viendo todos, los necesita para gestionar el evento.
-  const visibleStands = isAdmin ? stands : stands.filter(s => s.status === 'available')
+  // el sistema le resulta confuso ver mezclados los ocupados. Admin y
+  // visualizador ven todos, los necesitan para seguir el evento.
+  const visibleStands = isStaff ? stands : stands.filter(s => s.status === 'available')
   const filteredStands = filterStatus === 'all' ? visibleStands : visibleStands.filter(s => s.status === filterStatus)
 
-  // Sponsors es un mapa aparte: solo lo ve el admin (para armarlo). Los expositores
-  // no lo ven ni pueden reservar ahí (la base tampoco les devuelve esos stands).
-  const sectorTabs = ['salon', 'galeria', ...(isAdmin ? ['sponsor'] : [])]
+  // Sponsors es un mapa aparte: solo lo ve el staff (para armarlo o seguirlo).
+  // Los expositores no lo ven ni pueden reservar ahí (la base tampoco les
+  // devuelve esos stands). Galería es opcional: si el evento no le subió un
+  // mapa (y tampoco tiene stands ahí todavía), ni se muestra la pestaña.
+  const hasGaleria = !!event.mapImage?.galeria || event.stands.some(s => s.sector === 'galeria')
+  const sectorTabs = ['salon', ...(hasGaleria ? ['galeria'] : []), ...(isStaff ? ['sponsor'] : [])]
   const SECTOR_LABELS = { salon: 'Salón', galeria: 'Galería', sponsor: 'Sponsors' }
   const mapSrc = sector === 'sponsor' ? event.sponsors?.image : event.mapImage?.[sector]
 
@@ -200,7 +222,7 @@ export default function MapPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-950 flex flex-col">
+    <div className="min-h-screen bg-ink-950 flex flex-col" style={themeVars || undefined}>
       {/* Header */}
       <div className="bg-ink-900/90 backdrop-blur border-b border-ink-700 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -212,7 +234,7 @@ export default function MapPage() {
             <p className="text-xs text-muted">Seleccioná un stand para reservar</p>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && (
+            {isStaff && (
               <>
                 <button
                   onClick={() => { setEditMode(!editMode); setSelectedStand(null) }}
@@ -256,9 +278,9 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Stats bar: solo el admin, a los expositores ya les filtramos la
-          lista para que solo vean disponibles, no necesitan elegir estado. */}
-      {isAdmin && (
+      {/* Stats bar: admin y visualizador, a los expositores ya les filtramos
+          la lista para que solo vean disponibles, no necesitan elegir estado. */}
+      {isStaff && (
         <div className="bg-ink-900 border-b border-ink-700">
           <div className="max-w-5xl mx-auto px-4 py-2 flex gap-4 overflow-x-auto">
             {Object.entries(stats).map(([key, count]) => (
@@ -295,7 +317,9 @@ export default function MapPage() {
 
         {reservationsPaused && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-300">
-            La organización pausó las reservas de este evento por ahora. Todavía podés ver el mapa, pero no se puede tomar ningún stand hasta que se reanuden.
+            {event.status === 'past'
+              ? 'Este evento ya finalizó. Todavía podés ver el mapa, pero no se puede tomar ningún stand.'
+              : 'La organización pausó las reservas de este evento por ahora. Todavía podés ver el mapa, pero no se puede tomar ningún stand hasta que se reanuden.'}
           </div>
         )}
 
@@ -320,7 +344,7 @@ export default function MapPage() {
                 <img src={mapSrc} alt={`Plano ${sector}`} className="w-full h-auto block select-none" draggable={false}/>
               ) : (
                 <div className="w-full min-h-[240px] flex items-center justify-center text-center text-sm text-muted px-6">
-                  {isAdmin
+                  {isStaff
                     ? 'Este sector todavía no tiene imagen. Subila desde Administrador > Eventos > Editar evento.'
                     : 'Este sector todavía no tiene mapa.'}
                 </div>
@@ -329,7 +353,7 @@ export default function MapPage() {
                   expositores eligen el stand desde la lista de abajo en vez
                   (ven igual la imagen del mapa como referencia). El admin los
                   sigue viendo siempre, los necesita para reposicionarlos. */}
-              <div className={isAdmin ? 'contents' : 'hidden sm:contents'}>
+              <div className={isStaff ? 'contents' : 'hidden sm:contents'}>
                 {filteredStands.map(stand => {
                   const cat = categories.find(c => c.id === stand.categoryId)
                   return (
@@ -357,7 +381,7 @@ export default function MapPage() {
           </div>
           <div className="bg-ink-900 px-4 py-2 border-t border-ink-700 sm:hidden flex items-center justify-center gap-2 text-[10px] text-muted text-center">
             <span className="w-2 h-2 bg-ink-500 rounded-full flex-shrink-0"/>
-            {isAdmin ? 'Deslizá para ver el mapa completo' : 'Este es el mapa de referencia: elegí tu stand en la lista de abajo'}
+            {isStaff ? 'Deslizá para ver el mapa completo' : 'Este es el mapa de referencia: elegí tu stand en la lista de abajo'}
           </div>
         </div>
 
@@ -399,6 +423,7 @@ export default function MapPage() {
           quotaReached={quotaReached}
           quota={quota}
           reservationsPaused={reservationsPaused}
+          hideAmounts={isViewer}
           onClose={() => setSelectedStand(null)}
           onReserve={(s) => {
             setSelectedStand(null)

@@ -1,13 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Sparkles, Trash2, Users as UsersIcon, KeyRound, Plus, Edit2, UserPlus } from 'lucide-react'
 import { formatBirthDate } from '../../lib/formatDateTime'
 
 export default function SponsorsTab({ sponsorRegistrations, events, users, onDeleteRegistration, onAddMember = () => {}, onEditMember = () => {}, onDeleteMember = () => {} }) {
-  const [filterEventId, setFilterEventId] = useState('all')
+  // Activos primero (el evento en curso queda de entrada), finalizados al final.
+  const sortedEvents = useMemo(() => {
+    const active = events.filter(ev => ev.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    const past = events.filter(ev => ev.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    return [...active, ...past]
+  }, [events])
+  const [filterEventId, setFilterEventId] = useState(null)
+  useEffect(() => {
+    if (filterEventId === 'all') return
+    if (filterEventId && events.some(e => e.id === filterEventId)) return
+    setFilterEventId(sortedEvents[0]?.id || 'all')
+  }, [events, filterEventId, sortedEvents])
 
   const sponsorEvents = events.filter(ev => ev.sponsors?.enabled)
   const rows = sponsorRegistrations
-    .filter(r => filterEventId === 'all' || r.eventId === filterEventId)
+    .filter(r => !filterEventId || filterEventId === 'all' || r.eventId === filterEventId)
     .map(r => {
       const ev = events.find(e => e.id === r.eventId)
       return { ...r, event: ev, stand: ev?.stands.find(s => s.id === r.standId), user: users.find(u => u.id === r.userId) }
@@ -21,10 +32,10 @@ export default function SponsorsTab({ sponsorRegistrations, events, users, onDel
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Sparkles size={20} className="text-amber-500" /> Sponsors</h2>
           <p className="text-sm text-gray-500">Sponsors registrados por evento. Sus stands son gratis: no generan importes ni pagos.</p>
         </div>
-        <select value={filterEventId} onChange={e => setFilterEventId(e.target.value)}
+        <select value={filterEventId || 'all'} onChange={e => setFilterEventId(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-violet-500 outline-none">
           <option value="all">Todos los eventos</option>
-          {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+          {sortedEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado)' : ''}</option>)}
         </select>
       </div>
 

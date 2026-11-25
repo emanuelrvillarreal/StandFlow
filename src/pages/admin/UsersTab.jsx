@@ -3,14 +3,38 @@ import { formatBirthDate, formatDateTime } from '../../lib/formatDateTime'
 import { exportUsersCSV } from './adminHelpers'
 import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw, Eye, ArrowDownNarrowWide, ArrowUpNarrowWide, Download } from 'lucide-react'
 
-export default function UsersTab({ users, reservations, onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, onViewUser = () => {}, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {} }) {
+export default function UsersTab({ users, reservations, events = [], eventRequests = [], onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, onViewUser = () => {}, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {}, readOnly = false }) {
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState('desc')
   const [showDeleted, setShowDeleted] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [reservationFilter, setReservationFilter] = useState('all') // 'all' | 'with' | 'without'
+  const [eventFilter, setEventFilter] = useState('all')
 
   const usersWithReservation = useMemo(() => new Set(reservations.map(r => r.userId)), [reservations])
+
+  // A qué evento(s) "pertenece" cada usuario: si reservó un stand o mandó una
+  // solicitud de participación ahí. Alguien de otro evento (ej: se registró
+  // para Deckaria) no aparece al filtrar por uno distinto, salvo que también
+  // tenga algo cargado en ese otro (caso "mixto").
+  const eventIdsByUser = useMemo(() => {
+    const map = new Map()
+    const add = (userId, eventId) => {
+      if (!userId || !eventId) return
+      if (!map.has(userId)) map.set(userId, new Set())
+      map.get(userId).add(eventId)
+    }
+    reservations.forEach(r => add(r.userId, r.eventId))
+    eventRequests.forEach(r => add(r.userId, r.eventId))
+    return map
+  }, [reservations, eventRequests])
+
+  // Finalizados al final de la lista, para elegir fácil el evento en curso.
+  const sortedEvents = useMemo(() => {
+    const active = events.filter(e => e.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    const past = events.filter(e => e.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    return [...active, ...past]
+  }, [events])
 
   function toggleSelected(id) {
     setSelectedIds(prev => {
@@ -31,25 +55,28 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
       return haystack.includes(q)
     })
     if (reservationFilter === 'with') base = base.filter(u => usersWithReservation.has(u.id))
-    if (reservationFilter === 'without') base = base.filter(u => u.role_id !== 1 && !usersWithReservation.has(u.id))
+    if (reservationFilter === 'without') base = base.filter(u => u.role_id !== 1 && u.role_id !== 3 && !usersWithReservation.has(u.id))
+    if (eventFilter !== 'all') base = base.filter(u => eventIdsByUser.get(u.id)?.has(eventFilter))
     const sorted = [...base].sort((a, b) => {
       const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
       const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
       return sortDir === 'asc' ? ta - tb : tb - ta
     })
     return sorted
-  }, [users, search, sortDir, reservationFilter, usersWithReservation])
+  }, [users, search, sortDir, reservationFilter, usersWithReservation, eventFilter, eventIdsByUser])
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-gray-500">{users.length} usuarios registrados</p>
-        <button
-          onClick={onOpenCreateUser}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm"
-        >
-          <Plus size={18} /> Crear nuevo usuario
-        </button>
+        {!readOnly && (
+          <button
+            onClick={onOpenCreateUser}
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm"
+          >
+            <Plus size={18} /> Crear nuevo usuario
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -84,6 +111,15 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
             </button>
           ))}
         </div>
+        {sortedEvents.length > 1 && (
+          <select value={eventFilter} onChange={e => setEventFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+            <option value="all">Todos los eventos</option>
+            {sortedEvents.map(ev => (
+              <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado)' : ''}</option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => exportUsersCSV(filteredUsers, `usuarios${reservationFilter !== 'all' ? `-${reservationFilter === 'with' ? 'con-reserva' : 'sin-reserva'}` : ''}.csv`)}
           className="ml-auto flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 transition">
@@ -91,7 +127,7 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
         </button>
       </div>
 
-      {(search || reservationFilter !== 'all') && (
+      {(search || reservationFilter !== 'all' || eventFilter !== 'all') && (
         <p className="text-xs text-gray-400 -mt-1">{filteredUsers.length} resultado{filteredUsers.length === 1 ? '' : 's'}</p>
       )}
 
@@ -114,8 +150,8 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${u.role_id === 1 ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'}`}>
-              {u.role_id === 1 ? (u.isSysadmin ? 'Sysadmin' : 'Admin') : 'Expositor'}
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${u.role_id === 1 ? 'bg-violet-100 text-violet-700' : u.role_id === 3 ? 'bg-sky-100 text-sky-700' : 'bg-gray-100 text-gray-600'}`}>
+              {u.role_id === 1 ? (u.isSysadmin ? 'Sysadmin' : 'Admin') : u.role_id === 3 ? 'Visualizador' : 'Expositor'}
             </span>
             {u.role_id !== 1 && (u.maxStands || 1) > 1 && (
               <span className="ml-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Stands permitidos por evento">
@@ -128,7 +164,7 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
             <span className="text-xs text-gray-400">
               {reservations.filter(r => r.userId === u.id).length} reservas
             </span>
-            {u.isBlocked ? (
+            {!readOnly && (u.isBlocked ? (
               <button onClick={() => onUnblockUser(u)}
                 className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Desbloquear">
                 <ShieldCheck size={16} />
@@ -138,23 +174,27 @@ export default function UsersTab({ users, reservations, onOpenCreateUser, onOpen
                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Bloquear">
                 <ShieldOff size={16} />
               </button>
-            )}
+            ))}
             <button onClick={() => onViewUser(u)}
               className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition" title="Consultar">
               <Eye size={16} />
             </button>
-            <button onClick={() => onResetPassword(u)}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Reenviar recuperación de contraseña">
-              <KeyRound size={16} />
-            </button>
-            <button onClick={() => onOpenEditUser(u)}
-              className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition" title="Modificar">
-              <Edit2 size={16} />
-            </button>
-            <button onClick={() => onDeleteUser(u)}
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Dar de baja">
-              <Trash2 size={16} />
-            </button>
+            {!readOnly && (
+              <>
+                <button onClick={() => onResetPassword(u)}
+                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Reenviar recuperación de contraseña">
+                  <KeyRound size={16} />
+                </button>
+                <button onClick={() => onOpenEditUser(u)}
+                  className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition" title="Modificar">
+                  <Edit2 size={16} />
+                </button>
+                <button onClick={() => onDeleteUser(u)}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Dar de baja">
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
           </div>
         </div>
       ))}

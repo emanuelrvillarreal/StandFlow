@@ -2,38 +2,62 @@ import { Plus, Edit2, Trash2 } from 'lucide-react'
 
 export default function CategoriesTab({
   categories, reservations,
+  events = [], selectedEventId, onSelectEventId = () => {},
   catForm, setCatForm, onAddCategory,
   editingCat, setEditingCat, onSaveCat, onDeleteCategory,
+  readOnly = false,
 }) {
+  const selectedEvent = events.find(e => e.id === selectedEventId)
+  const eventCategories = categories.filter(c => c.eventId === selectedEventId)
+
   return (
     <div className="space-y-4 max-w-xl">
-      <div className="bg-white rounded-2xl shadow-sm border p-5">
-        <h3 className="font-bold text-gray-800 mb-4">Agregar categoría</h3>
-        <div className="flex gap-3">
-          <input type="text" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
-            placeholder="Nombre de categoría"
-            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm" />
-          <div className="flex items-center gap-2">
-            <input type="color" value={catForm.color} onChange={e => setCatForm({ ...catForm, color: e.target.value })}
-              className="w-10 h-10 rounded-xl border border-gray-200 cursor-pointer p-0.5" />
+      {events.length > 1 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="text-sm font-medium text-gray-500">Categorías del evento</label>
+          <select value={selectedEventId || ''} onChange={e => onSelectEventId(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold">
+            {events.map(ev => (
+              <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado)' : ''}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {!readOnly && (
+        <div className="bg-white rounded-2xl shadow-sm border p-5">
+          <h3 className="font-bold text-gray-800 mb-4">Agregar categoría</h3>
+          <div className="flex gap-3">
+            <input type="text" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
+              placeholder="Nombre de categoría"
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm" />
+            <div className="flex items-center gap-2">
+              <input type="color" value={catForm.color} onChange={e => setCatForm({ ...catForm, color: e.target.value })}
+                className="w-10 h-10 rounded-xl border border-gray-200 cursor-pointer p-0.5" />
+            </div>
+            <button onClick={onAddCategory}
+              className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-1">
+              <Plus size={14} /> Agregar
+            </button>
           </div>
-          <button onClick={onAddCategory}
-            className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-1">
-            <Plus size={14} /> Agregar
-          </button>
+          <div className="mt-3">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Detalles del stand (opcional)</label>
+            <textarea value={catForm.details} onChange={e => setCatForm({ ...catForm, details: e.target.value })}
+              placeholder={'Ej: 1,80 x 73, incluye 2 sillas por mesa.\nNo incluye corriente eléctrica.\nNo incluye mantel.'}
+              rows={3}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none" />
+            <p className="text-[11px] text-gray-400 mt-1">Se le muestra al expositor cuando elige un stand de esta categoría, y queda guardado en su reserva.</p>
+          </div>
         </div>
-        <div className="mt-3">
-          <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Detalles del stand (opcional)</label>
-          <textarea value={catForm.details} onChange={e => setCatForm({ ...catForm, details: e.target.value })}
-            placeholder={'Ej: 1,80 x 73, incluye 2 sillas por mesa.\nNo incluye corriente eléctrica.\nNo incluye mantel.'}
-            rows={3}
-            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none" />
-          <p className="text-[11px] text-gray-400 mt-1">Se le muestra al expositor cuando elige un stand de esta categoría, y queda guardado en su reserva.</p>
-        </div>
-      </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border divide-y">
-        {categories.map(cat => (
+        {eventCategories.length === 0 && (
+          <div className="px-5 py-8 text-center text-sm text-gray-400">
+            {selectedEvent ? `Todavía no hay categorías para "${selectedEvent.name}".` : 'Elegí un evento.'}
+          </div>
+        )}
+        {eventCategories.map(cat => (
           <div key={cat.id} className="px-5 py-4">
             <div className="flex items-center justify-between">
               {editingCat?.id === cat.id ? (
@@ -52,7 +76,7 @@ export default function CategoriesTab({
                   </span>
                 </div>
               )}
-              {editingCat?.id !== cat.id && (
+              {!readOnly && editingCat?.id !== cat.id && (
                 <div className="flex gap-1">
                   <button onClick={() => setEditingCat({ ...cat, details: cat.details || '' })}
                     className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition">

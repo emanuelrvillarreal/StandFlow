@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardCheck, Search, Download, Check, Sparkles, Store, AlertCircle, Users2 } from 'lucide-react'
+import { ClipboardCheck, Search, Download, Check, Sparkles, Store, AlertCircle, Users2, UserPlus, DollarSign } from 'lucide-react'
 import NoticeDialog from '../../components/NoticeDialog'
 import { supabase } from '../../lib/supabase'
 import { eventDays, todayISO, formatDateTime, formatTime } from '../../lib/formatDateTime'
@@ -36,8 +36,15 @@ function paymentInfo(r, stand, depositPercent = 50) {
   }
 }
 
-export default function AttendanceTab({ events, reservations, users, sponsorRegistrations, initialEventId, onStatusChange = () => {} }) {
-  const [eventId, setEventId] = useState(initialEventId || events[0]?.id || '')
+export default function AttendanceTab({ events, reservations, users, sponsorRegistrations, initialEventId, onStatusChange = () => {}, readOnly = false }) {
+  // Activos primero (el evento en curso queda de entrada), finalizados al
+  // final (pasan a segundo plano, pero se pueden seguir elegir si hace falta).
+  const sortedEvents = useMemo(() => {
+    const active = events.filter(ev => ev.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    const past = events.filter(ev => ev.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    return [...active, ...past]
+  }, [events])
+  const [eventId, setEventId] = useState(initialEventId || sortedEvents[0]?.id || '')
   const [day, setDay] = useState('')
   const [payingId, setPayingId] = useState(null)
 
@@ -59,10 +66,33 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
   const [notice, setNotice] = useState(null)
 
   useEffect(() => { if (initialEventId) setEventId(initialEventId) }, [initialEventId])
-  useEffect(() => { if (!eventId && events[0]) setEventId(events[0].id) }, [events, eventId])
+  useEffect(() => { if (!eventId && sortedEvents[0]) setEventId(sortedEvents[0].id) }, [sortedEvents, eventId])
 
   const ev = events.find(e => e.id === eventId)
   const days = useMemo(() => eventDays(ev), [ev])
+
+  // Seguros (titular + acompañantes) de las reservas de este evento, para
+  // mostrar en la fila si vino con acompañante y si ese extra está cobrado.
+  const [insuranceByReservation, setInsuranceByReservation] = useState({})
+  const eventReservationIdsKey = useMemo(
+    () => reservations.filter(r => r.eventId === eventId && r.status !== 'cancelled').map(r => r.id).sort().join(','),
+    [reservations, eventId]
+  )
+  useEffect(() => {
+    const ids = eventReservationIdsKey ? eventReservationIdsKey.split(',') : []
+    if (ids.length === 0) { setInsuranceByReservation({}); return }
+    let cancelled = false
+    supabase.from('reservation_insurance').select('*').in('reservation_id', ids).order('position').then(({ data, error }) => {
+      if (cancelled || error) return
+      const grouped = {}
+      ;(data || []).forEach(p => {
+        if (!grouped[p.reservation_id]) grouped[p.reservation_id] = []
+        grouped[p.reservation_id].push(p)
+      })
+      setInsuranceByReservation(grouped)
+    })
+    return () => { cancelled = true }
+  }, [eventReservationIdsKey])
 
   // Al cambiar de evento se elige el día de hoy si el evento lo incluye; si no, el primero.
   useEffect(() => {
@@ -105,12 +135,19 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
       .forEach(r => {
         const u = users.find(x => x.id === r.userId)
         const stand = ev.stands.find(s => s.id === r.standId)
+        const insurancePeople = insuranceByReservation[r.id] || []
+        const companions = insurancePeople.filter(p => p.role === 'acompanante')
+        const companionsWithCharge = companions.filter(p => p.amount)
         out.push({
           key: `r-${r.id}`, kind: 'exhibitor', reservationId: r.id,
           name: u?.businessName || `${u?.name || ''} ${u?.lastName || ''}`.trim() || '(sin nombre)',
           sub: [u?.businessName ? `${u?.name || ''} ${u?.lastName || ''}`.trim() : '', u?.phone].filter(Boolean).join(' · '),
           stand: stand?.number ?? '—', standName: (r.standName || '').trim(), createdAt: r.createdAt, pay: paymentInfo(r, stand, effectiveDepositPercent(stand, ev)),
           shared: !!r.shared, sharedWith: (r.sharedWith || '').trim(), instagram: (r.instagram || '').trim(),
+          companionsCount: companions.length,
+          insuranceChargeTotal: companionsWithCharge.reduce((s, p) => s + Number(p.amount), 0),
+          insuranceChargePaid: companionsWithCharge.length > 0 && companionsWithCharge.every(p => p.paid),
+          insuranceChargePending: companionsWithCharge.some(p => !p.paid),
         })
       })
 
@@ -129,7 +166,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
     })
 
     return out.sort((a, b) => String(a.stand).localeCompare(String(b.stand), 'es', { numeric: true }) || a.name.localeCompare(b.name))
-  }, [ev, day, reservations, users, sponsorRegistrations])
+  }, [ev, day, reservations, users, sponsorRegistrations, insuranceByReservation])
 
   // Presencia del día elegido, indexada por persona.
   const presentByKey = useMemo(() => {
@@ -181,12 +218,13 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
   }
 
   function exportCsv() {
-    const header = ['Evento', 'Día', 'Tipo', 'Nombre', 'Contacto', 'Stand', 'Nombre de stand', 'Compartido', 'Comparte con', 'Instagram', 'Se anotó', 'Pago', 'Cobrado', 'Total', 'Debe', 'Presente', 'Hora de ingreso']
+    const header = ['Evento', 'Día', 'Tipo', 'Nombre', 'Contacto', 'Stand', 'Nombre de stand', 'Compartido', 'Comparte con', 'Instagram', 'Acompañantes', 'Seguro extra', 'Seguro cobrado', 'Se anotó', 'Pago', 'Cobrado', 'Total', 'Debe', 'Presente', 'Hora de ingreso']
     const lines = rows.map(r => {
       const a = presentByKey.get(r.key)
       return [
         ev?.name, day, r.kind === 'sponsor' ? 'Sponsor' : 'Expositor', r.name, r.sub, r.stand, r.standName,
         r.kind === 'sponsor' ? '' : (r.shared ? 'Sí' : 'No'), r.sharedWith, r.instagram,
+        r.companionsCount || '', r.insuranceChargeTotal || '', r.insuranceChargeTotal ? (r.insuranceChargePending ? 'No' : 'Sí') : '',
         formatDateTime(r.createdAt),
         r.pay.label, r.pay.paid, r.pay.total, r.pay.debt, a ? 'Sí' : 'No', a ? formatTime(a.checked_at) : '',
       ]
@@ -214,7 +252,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
         <div className="flex flex-wrap gap-3 items-center">
           <select value={eventId} onChange={e => { setEventId(e.target.value); setSearch(''); setFilter('all') }}
             className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold">
-            {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            {sortedEvents.map(e => <option key={e.id} value={e.id}>{e.name}{e.status === 'past' ? ' (finalizado)' : ''}</option>)}
           </select>
           <div className="flex flex-wrap gap-2">
             {days.map(d => (
@@ -224,13 +262,15 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
               </button>
             ))}
           </div>
-          <button onClick={exportCsv}
-            className="ml-auto flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
-            <Download size={14} /> Exportar CSV
-          </button>
+          {!readOnly && (
+            <button onClick={exportCsv}
+              className="ml-auto flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
+              <Download size={14} /> Exportar CSV
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 gap-3 ${readOnly ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
           <div className="rounded-xl bg-violet-50 border border-violet-100 px-4 py-3">
             <p className="text-[11px] font-bold text-violet-500 uppercase">Presentes hoy</p>
             <p className="text-2xl font-bold text-violet-700">{stats.present}<span className="text-sm font-semibold text-violet-400"> / {stats.total}</span></p>
@@ -243,10 +283,12 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
             <p className="text-[11px] font-bold text-amber-600 uppercase">Solo seña · sin pagar</p>
             <p className="text-2xl font-bold text-amber-700">{stats.deposit}<span className="text-sm font-semibold text-amber-500"> · {stats.unpaid}</span></p>
           </div>
-          <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
-            <p className="text-[11px] font-bold text-gray-500 uppercase">Cobrado · falta cobrar</p>
-            <p className="text-lg font-bold text-gray-800">{money(stats.collected)} <span className="text-sm font-semibold text-red-500">· {money(stats.due)}</span></p>
-          </div>
+          {!readOnly && (
+            <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+              <p className="text-[11px] font-bold text-gray-500 uppercase">Cobrado · falta cobrar</p>
+              <p className="text-lg font-bold text-gray-800">{money(stats.collected)} <span className="text-sm font-semibold text-red-500">· {money(stats.due)}</span></p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -275,13 +317,14 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
 
       <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[980px]">
+          <table className="w-full text-sm min-w-[1160px]">
             <thead>
               <tr className="text-left text-[11px] uppercase text-gray-400 bg-gray-50 border-b">
                 <th className="px-4 py-3 font-semibold w-36">Presente</th>
                 <th className="px-4 py-3 font-semibold">Persona / emprendimiento</th>
                 <th className="px-4 py-3 font-semibold">Stand</th>
                 <th className="px-4 py-3 font-semibold">Compartido</th>
+                <th className="px-4 py-3 font-semibold">Acompañante / Seguro</th>
                 <th className="px-4 py-3 font-semibold">Se anotó</th>
                 <th className="px-4 py-3 font-semibold">Pago</th>
               </tr>
@@ -292,7 +335,7 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
                 return (
                   <tr key={r.key} data-row={r.name} className={`border-b last:border-0 transition ${a ? 'bg-emerald-50/40' : 'hover:bg-gray-50'}`}>
                     <td className="px-4 py-3">
-                      <button onClick={() => toggle(r)} disabled={!day || busyKey === r.key}
+                      <button onClick={() => toggle(r)} disabled={readOnly || !day || busyKey === r.key}
                         aria-pressed={!!a} aria-label={`${a ? 'Desmarcar' : 'Marcar'} presente a ${r.name}`}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition disabled:opacity-60 ${
                           a ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600' : 'border border-gray-300 text-gray-500 hover:border-emerald-400 hover:text-emerald-600'}`}>
@@ -327,16 +370,34 @@ export default function AttendanceTab({ events, reservations, users, sponsorRegi
                         <span className="text-xs text-gray-400">No</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      {r.kind === 'sponsor' ? (
+                        <span className="text-gray-300">—</span>
+                      ) : r.companionsCount > 0 ? (
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                            <UserPlus size={12} /> {r.companionsCount > 1 ? `${r.companionsCount} acompañantes` : 'Con acompañante'}
+                          </span>
+                          {r.insuranceChargeTotal > 0 && (
+                            <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full w-fit ${r.insuranceChargePending ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                              <DollarSign size={10} /> Seguro {money(r.insuranceChargeTotal)} · {r.insuranceChargePending ? 'sin cobrar' : 'cobrado'}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">Sin acompañante</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(r.createdAt) || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${PAY_STYLES[r.pay.key]}`}>{r.pay.label}</span>
-                      {r.kind === 'exhibitor' && (
+                      {!readOnly && r.kind === 'exhibitor' && (
                         <p className="text-[11px] text-gray-400 mt-1">
                           {money(r.pay.paid)} de {money(r.pay.total)}
                           {r.pay.debt > 0 && <span className="text-red-500 font-semibold"> · debe {money(r.pay.debt)}</span>}
                         </p>
                       )}
-                      {r.kind === 'exhibitor' && r.pay.key !== 'paid' && (
+                      {!readOnly && r.kind === 'exhibitor' && r.pay.key !== 'paid' && (
                         <div className="flex gap-1 mt-1.5">
                           {(r.pay.key === 'pending' || r.pay.key === 'reserved') && (
                             <button onClick={() => markPayment(r, 'deposit_paid')} disabled={payingId === r.reservationId}

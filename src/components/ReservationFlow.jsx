@@ -27,8 +27,9 @@ function toReservationRow(reservation) {
 
 export default function ReservationFlow({ stand, event, onClose }) {
   const { state, dispatch } = useApp()
-  const { currentUser, categories } = state
-  const [step, setStep] = useState('form') // form | confirm
+  const { currentUser, categories: allCategories } = state
+  const categories = allCategories.filter(c => c.eventId === event.id)
+  const [step, setStep] = useState('form') // form | insurance | confirm
   // Si el evento dura más de un día Y el organizador habilitó elegir días,
   // viene por defecto con todos marcados; el expositor puede destildar los que
   // no va a estar. Si no lo habilitó, se asume presente todos los días, sin preguntar.
@@ -39,6 +40,25 @@ export default function ReservationFlow({ stand, event, onClose }) {
   const [submitting, setSubmitting] = useState(false)
   const [reservation, setReservation] = useState(null)
   const f = k => ({ value: form[k], onChange: e => setForm({...form, [k]: e.target.value}) })
+
+  // Seguro: el titular es obligatorio, el acompañante es opcional. Si hay más
+  // de un acompañante, se le avisa que lo tiene que cargar la organización
+  // (el admin lo agrega después desde el detalle de la reserva).
+  const [insurance, setInsurance] = useState({
+    titularFirstName: currentUser?.name || '',
+    titularLastName: currentUser?.lastName || '',
+    titularDni: '',
+    titularBirthDate: currentUser?.birthDate || '',
+    hasCompanions: 'no',
+    companionsCount: 1,
+    companionFirstName: '',
+    companionLastName: '',
+    companionDni: '',
+    companionBirthDate: '',
+  })
+  const [insuranceError, setInsuranceError] = useState('')
+  const [submittingInsurance, setSubmittingInsurance] = useState(false)
+  const setIns = (k, v) => setInsurance(prev => ({ ...prev, [k]: v }))
   const depositPercent = effectiveDepositPercent(stand, event)
   const calculatedAmount = form.paymentType === 'deposit' ? Math.round(stand.price * depositPercent / 100) : stand.price
 
@@ -147,8 +167,45 @@ export default function ReservationFlow({ stand, event, onClose }) {
 
     dispatch({ type: 'ADD_RESERVATION', reservation: res })
     setReservation(res)
-    setStep('confirm')
+    setStep('insurance')
     setSubmitting(false)
+  }
+
+  async function handleInsuranceSubmit(e) {
+    e.preventDefault()
+    if (!insurance.titularFirstName.trim() || !insurance.titularLastName.trim() || !insurance.titularDni.trim() || !insurance.titularBirthDate) {
+      setInsuranceError('Completá nombre, apellido, DNI y fecha de nacimiento del titular.')
+      return
+    }
+    const people = [{
+      role: 'titular',
+      first_name: insurance.titularFirstName.trim(),
+      last_name: insurance.titularLastName.trim(),
+      dni: insurance.titularDni.trim(),
+      birth_date: insurance.titularBirthDate,
+    }]
+    if (insurance.hasCompanions === 'si') {
+      if (!insurance.companionFirstName.trim() || !insurance.companionLastName.trim() || !insurance.companionDni.trim() || !insurance.companionBirthDate) {
+        setInsuranceError('Completá nombre, apellido, DNI y fecha de nacimiento de al menos un acompañante.')
+        return
+      }
+      people.push({
+        role: 'acompanante',
+        first_name: insurance.companionFirstName.trim(),
+        last_name: insurance.companionLastName.trim(),
+        dni: insurance.companionDni.trim(),
+        birth_date: insurance.companionBirthDate,
+      })
+    }
+    setInsuranceError('')
+    setSubmittingInsurance(true)
+    const { error } = await supabase.rpc('submit_reservation_insurance', {
+      p_reservation_id: reservation.id,
+      p_people: people,
+    })
+    setSubmittingInsurance(false)
+    if (error) { setInsuranceError(`No se pudo guardar el seguro: ${error.message}`); return }
+    setStep('confirm')
   }
 
   function buildMessage() {
@@ -202,6 +259,98 @@ export default function ReservationFlow({ stand, event, onClose }) {
   function buildMail() {
     const subject = `Comprobante de reserva - ${event.name} - Stand ${stand.number}`
     window.location.href = `mailto:${event.organizerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildMessage())}`
+  }
+
+  if (step === 'insurance') {
+    const companionsCount = Math.max(1, Number(insurance.companionsCount) || 1)
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+        <div className="bg-ink-800 border border-ink-600 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-ink-600 flex-shrink-0">
+            <div>
+              <h3 className="font-display font-bold text-white">Datos para el seguro</h3>
+              <p className="text-xs text-muted">Stand {stand.number} · obligatorio para confirmar la reserva</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleInsuranceSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+            <p className="text-xs text-muted">El evento exige datos de seguro de quien esté a cargo del stand y, si corresponde, de un acompañante. Completá los datos reales de cada persona.</p>
+            {insuranceError && <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl text-sm">{insuranceError}</div>}
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-white">Titular del stand</p>
+              <div className="grid grid-cols-2 gap-3">
+                <input type="text" required placeholder="Nombre" value={insurance.titularFirstName} onChange={e => setIns('titularFirstName', e.target.value)}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                <input type="text" required placeholder="Apellido" value={insurance.titularLastName} onChange={e => setIns('titularLastName', e.target.value)}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+              </div>
+              <input type="text" required placeholder="DNI" value={insurance.titularDni} onChange={e => setIns('titularDni', e.target.value)}
+                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+              <div>
+                <label className="block text-xs text-muted mb-1">Fecha de nacimiento</label>
+                <input type="date" required min="1900-01-01" max={new Date().toISOString().slice(0,10)} value={insurance.titularBirthDate} onChange={e => setIns('titularBirthDate', e.target.value)}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted mb-2">¿Va a haber acompañante(s) en el stand?</label>
+              <div className="flex gap-3">
+                {['no','si'].map(v => (
+                  <label key={v} className={`flex-1 flex items-center justify-center gap-2 py-3 border rounded-xl cursor-pointer transition ${insurance.hasCompanions===v?'border-accent bg-accent/10 text-accent-soft':'border-ink-600 text-muted hover:bg-ink-700'}`}>
+                    <input type="radio" name="hasCompanions" value={v} checked={insurance.hasCompanions===v} onChange={() => setIns('hasCompanions', v)} className="sr-only"/>
+                    {v === 'si' ? 'Sí' : 'No'}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {insurance.hasCompanions === 'si' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-muted mb-1">¿Cuántos acompañantes?</label>
+                  <input type="number" min="1" max="20" value={insurance.companionsCount}
+                    onChange={e => setIns('companionsCount', e.target.value === '' ? '' : Number(e.target.value))}
+                    onBlur={e => setIns('companionsCount', Math.max(1, Number(e.target.value) || 1))}
+                    className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                </div>
+
+                {companionsCount > 1 && (
+                  <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm px-4 py-3 rounded-xl">
+                    Tenés más de un acompañante. Acá podés cargar los datos de uno; para el resto y su pago del seguro, comunicate con la organización del evento.
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-white">Acompañante 1</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="text" required placeholder="Nombre" value={insurance.companionFirstName} onChange={e => setIns('companionFirstName', e.target.value)}
+                      className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                    <input type="text" required placeholder="Apellido" value={insurance.companionLastName} onChange={e => setIns('companionLastName', e.target.value)}
+                      className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                  </div>
+                  <input type="text" required placeholder="DNI" value={insurance.companionDni} onChange={e => setIns('companionDni', e.target.value)}
+                    className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Fecha de nacimiento</label>
+                    <input type="date" required min="1900-01-01" max={new Date().toISOString().slice(0,10)} value={insurance.companionBirthDate} onChange={e => setIns('companionBirthDate', e.target.value)}
+                      className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                  </div>
+                </div>
+              </>
+            )}
+          </form>
+
+          <div className="px-6 pb-6 pt-2 flex-shrink-0 border-t border-ink-600">
+            <button type="submit" onClick={handleInsuranceSubmit} disabled={submittingInsurance}
+              className="w-full bg-accent hover:bg-accent-soft disabled:opacity-60 text-ink-950 font-display font-bold py-3 rounded-xl transition shadow-glow">
+              {submittingInsurance ? 'Guardando...' : 'Guardar datos de seguro'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (step === 'confirm') {

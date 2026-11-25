@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, Check, X, RotateCcw, Trash2, Eye, Download, ChevronLeft, ChevronRight, ChevronDown, Instagram, Store, Phone, Mail, MessageSquare, ShieldCheck, ScrollText, Loader2 } from 'lucide-react'
 import { formatDateTime, formatBirthDate } from '../../lib/formatDateTime'
@@ -121,10 +121,24 @@ function RequestDetailModal({ request, user, event, decidedByUser, onClose }) {
 export default function RequestsTab({
   eventRequests, events, users, onDecide, onDelete = () => {}, onResendEmail = () => {},
   isSysadmin = false, notificationLog, loadingNotificationLog = false, onLoadNotificationLog = () => {},
+  readOnly = false,
 }) {
   const approvalEvents = useMemo(() => events.filter(e => e.requiresApproval), [events])
+  // Activos primero (el evento en curso queda de entrada), finalizados al final.
+  const sortedApprovalEvents = useMemo(() => {
+    const active = approvalEvents.filter(ev => ev.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    const past = approvalEvents.filter(ev => ev.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
+    return [...active, ...past]
+  }, [approvalEvents])
   const [statusFilter, setStatusFilter] = useState('pending')
-  const [eventFilter, setEventFilter] = useState('all')
+  const [eventFilter, setEventFilter] = useState(null)
+  // Arranca mostrando el evento activo (no "Todos"); solo se autoelige una
+  // vez, así que si el admin elige "Todos" a propósito no se le vuelve a pisar.
+  useEffect(() => {
+    if (eventFilter === 'all') return
+    if (eventFilter && approvalEvents.some(e => e.id === eventFilter)) return
+    setEventFilter(sortedApprovalEvents[0]?.id || 'all')
+  }, [approvalEvents, eventFilter, sortedApprovalEvents])
   const [search, setSearch] = useState('')
   const [detailRequest, setDetailRequest] = useState(null)
   const [page, setPage] = useState(1)
@@ -140,12 +154,19 @@ export default function RequestsTab({
     if (next && notificationLog === null) onLoadNotificationLog()
   }
 
+  // El log también respeta el evento elegido arriba: si estás viendo
+  // Deckaria, mostrá el de Deckaria; si cambiás al evento nuevo, el de ese.
+  const visibleLog = useMemo(
+    () => (notificationLog || []).filter(n => !eventFilter || eventFilter === 'all' || n.eventId === eventFilter),
+    [notificationLog, eventFilter]
+  )
+
   const requests = useMemo(() => {
     const q = search.trim().toLowerCase()
     return eventRequests
       .filter(r => approvalEvents.some(e => e.id === r.eventId))
       .filter(r => statusFilter === 'all' || r.status === statusFilter)
-      .filter(r => eventFilter === 'all' || r.eventId === eventFilter)
+      .filter(r => !eventFilter || eventFilter === 'all' || r.eventId === eventFilter)
       .filter(r => {
         if (!q) return true
         const u = users.find(x => x.id === r.userId)
@@ -160,14 +181,16 @@ export default function RequestsTab({
   const pageRequests = requests.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   const counts = useMemo(() => {
-    const scoped = eventRequests.filter(r => approvalEvents.some(e => e.id === r.eventId))
+    const scoped = eventRequests
+      .filter(r => approvalEvents.some(e => e.id === r.eventId))
+      .filter(r => !eventFilter || eventFilter === 'all' || r.eventId === eventFilter)
     return {
       pending: scoped.filter(r => r.status === 'pending').length,
       approved: scoped.filter(r => r.status === 'approved').length,
       rejected: scoped.filter(r => r.status === 'rejected').length,
       all: scoped.length,
     }
-  }, [eventRequests, approvalEvents])
+  }, [eventRequests, approvalEvents, eventFilter])
 
   if (approvalEvents.length === 0) {
     return (
@@ -197,10 +220,10 @@ export default function RequestsTab({
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:gap-3">
-          <select value={eventFilter} onChange={e => changeEventFilter(e.target.value)}
+          <select value={eventFilter || 'all'} onChange={e => changeEventFilter(e.target.value)}
             className="col-span-2 sm:col-span-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
             <option value="all">Todos los eventos con confirmación</option>
-            {approvalEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+            {sortedApprovalEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado)' : ''}</option>)}
           </select>
           <div className="relative col-span-2 sm:col-span-1 sm:flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -281,25 +304,25 @@ export default function RequestsTab({
                   className="flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition">
                   <Eye size={14} /> Ver detalles
                 </button>
-                {r.status !== 'approved' && (
+                {!readOnly && r.status !== 'approved' && (
                   <button onClick={() => onDecide(r, 'approved')}
                     className="flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
                     {r.status === 'rejected' ? <RotateCcw size={14} /> : <Check size={14} />} Aprobar
                   </button>
                 )}
-                {r.status === 'approved' && (
+                {!readOnly && r.status === 'approved' && (
                   <button onClick={() => onResendEmail(r)}
                     className="flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl text-sm font-semibold transition">
                     <Mail size={14} /> Reenviar mail
                   </button>
                 )}
-                {r.status !== 'rejected' && (
+                {!readOnly && r.status !== 'rejected' && (
                   <button onClick={() => onDecide(r, 'rejected')}
                     className="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition">
                     <X size={14} /> {r.status === 'approved' ? 'Revocar' : 'Rechazar'}
                   </button>
                 )}
-                {r.status === 'rejected' && (
+                {!readOnly && r.status === 'rejected' && (
                   <button onClick={() => onDelete(r)}
                     className="flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
                     <Trash2 size={14} /> Eliminar
@@ -333,6 +356,8 @@ export default function RequestsTab({
                 </div>
               ) : !notificationLog || notificationLog.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">Todavía no se mandó ninguna notificación.</p>
+              ) : visibleLog.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Este evento todavía no tiene notificaciones.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
@@ -347,7 +372,7 @@ export default function RequestsTab({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {notificationLog.map(n => {
+                      {visibleLog.map(n => {
                         const ev = events.find(e => e.id === n.eventId)
                         const money = (v) => `$${Number(v || 0).toLocaleString('es-AR')}`
                         const isDeposit = n.detail?.paymentType === 'deposit'

@@ -3,28 +3,31 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Referencian variables CSS (definidas en :root, en index.css) para
+        // que un evento pueda pisarlas con su propia paleta sin tocar estas
+        // clases ni recompilar nada (ver src/lib/eventTheme.js).
         ink: {
-          950: '#07070d',
-          900: '#0b0b16',
-          800: '#12121f',
-          700: '#1a1a2b',
-          600: '#26263d',
-          500: '#3a3a57',
+          950: 'var(--ink-950)',
+          900: 'var(--ink-900)',
+          800: 'var(--ink-800)',
+          700: 'var(--ink-700)',
+          600: 'var(--ink-600)',
+          500: 'var(--ink-500)',
         },
         // Gris claro para texto secundario sobre fondo oscuro (ink-500 es
         // muy oscuro y casi no contrasta; esto es lo que se usa para textos).
         muted: {
-          DEFAULT: '#a8a8cc',
-          dim: '#83839f',
+          DEFAULT: 'var(--muted)',
+          dim: 'var(--muted-dim)',
         },
         accent: {
-          DEFAULT: '#2ee6d6',
-          soft: '#7ff3e9',
-          dim: 'rgba(46, 230, 214, 0.16)',
+          DEFAULT: 'var(--accent)',
+          soft: 'var(--accent-soft)',
+          dim: 'var(--accent-dim)',
         },
         accent2: {
-          DEFAULT: '#ff4fd8',
-          dim: 'rgba(255, 79, 216, 0.16)',
+          DEFAULT: 'var(--accent2)',
+          dim: 'var(--accent2-dim)',
         },
       },
       fontFamily: {
@@ -32,7 +35,7 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        glow: '0 0 0 1px rgba(46, 230, 214, 0.25), 0 0 24px rgba(46, 230, 214, 0.15)',
+        glow: '0 0 0 1px var(--accent-ring), 0 0 24px var(--accent-glow)',
       },
     },
   },

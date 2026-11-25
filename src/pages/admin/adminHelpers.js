@@ -89,7 +89,9 @@ export function toEventRow(event) {
     reservation_note: event.reservationNote || null,
     requests_paused: !!event.requestsPaused,
     reservations_paused: !!event.reservationsPaused,
+    hidden_from_list: !!event.hiddenFromList,
     notify_emails: event.notifyEmails || null,
+    theme_accent: event.themeAccent || null,
   }
 }
 

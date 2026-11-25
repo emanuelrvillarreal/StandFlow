@@ -39,8 +39,8 @@ export default function UserDetailModal({ user, reservationsCount = 0, onClose }
             <Field label="Teléfono" value={user.phone} />
             <Field label="Instagram" value={user.instagram} />
             <Field label="Fecha de nacimiento" value={formatBirthDate(user.birthDate)} />
-            <Field label="Tipo de cuenta" value={user.role_id === 1 ? (user.isSysadmin ? 'Sysadmin' : 'Admin') : 'Expositor'} />
-            {user.role_id !== 1 && <Field label="Stands permitidos por evento" value={user.maxStands} />}
+            <Field label="Tipo de cuenta" value={user.role_id === 1 ? (user.isSysadmin ? 'Sysadmin' : 'Admin') : user.role_id === 3 ? 'Visualizador' : 'Expositor'} />
+            {user.role_id !== 1 && user.role_id !== 3 && <Field label="Stands permitidos por evento" value={user.maxStands} />}
             <Field label="Estado" value={user.isBlocked ? 'Bloqueado' : 'Activo'} />
             <Field label="Reservas" value={reservationsCount} />
             <Field label="Se registró el" value={user.createdAt ? formatDateTime(user.createdAt) : '—'} />

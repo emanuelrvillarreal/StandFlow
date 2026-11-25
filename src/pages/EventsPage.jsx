@@ -179,7 +179,15 @@ export default function EventsPage() {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((ev, i) => currentUser ? (() => {
+          {/* Un evento "oculto" (switch del sysadmin) no aparece acá para nadie
+              más que el admin, que lo sigue viendo para poder gestionarlo.
+              Los finalizados quedan al final, para que se vea primero el que está en curso. */}
+          {[...events].sort((a, b) => {
+            const aPast = a.status === 'past' ? 1 : 0
+            const bPast = b.status === 'past' ? 1 : 0
+            if (aPast !== bPast) return aPast - bPast
+            return new Date(a.date) - new Date(b.date)
+          }).filter(ev => isAdmin || !ev.hiddenFromList).map((ev, i) => currentUser ? (() => {
             const access = getEventAccess({ event: ev, user: currentUser, requests: state.eventRequests, reservations: state.reservations })
             const canSeeAvailability = isAdmin || access.status === 'open' || access.status === 'approved'
             return (

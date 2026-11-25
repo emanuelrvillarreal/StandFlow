@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, Search, Pencil } from 'lucide-react'
+import { Filter, Download, Eye, CheckCircle, XCircle, Clock, Trash2, MessageCircle, Mail, Users2, MoreVertical, AlertTriangle, Unlock, ArrowDownNarrowWide, ArrowUpNarrowWide, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, Search, Pencil, Zap } from 'lucide-react'
 import { STATUS_LABELS, STATUS_STYLES, exportCSV } from './adminHelpers'
 import { formatDateTime, formatDaysList, eventDays } from '../../lib/formatDateTime'
 
@@ -19,7 +19,7 @@ const CARD_ACCENT = {
   reserved: { border: 'border-l-blue-400', header: 'from-blue-50 to-transparent' },
 }
 
-function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onEditAmount, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {} }) {
+function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDetail, onStatusChange, onEditAmount, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {}, readOnly = false }) {
   const btnRef = useRef(null)
   const menuRef = useRef(null)
   // Si no entra hacia abajo (la tarjeta está al final de la lista, pegada al
@@ -51,53 +51,58 @@ function ActionsMenu({ reservation: r, user, open, onToggle, onClose, onViewDeta
               className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left">
               <Eye size={14} className="text-gray-400" /> Ver detalle
             </button>
+            {readOnly && (
+              <p className="px-4 py-2 text-xs text-gray-400">Solo lectura: no podés modificar esta reserva.</p>
+            )}
+            {!readOnly && (
             <button onClick={() => { onEditAmount(); onClose() }}
               className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left">
               <Pencil size={14} className="text-gray-400" /> Editar importe
             </button>
-            {r.status === 'pending' && (
+            )}
+            {!readOnly && r.status === 'pending' && (
               <button onClick={() => { onStatusChange('deposit_paid'); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 transition text-left">
                 <CheckCircle size={14} /> Marcar seña
               </button>
             )}
-            {(r.status !== 'paid' && r.status !== 'cancelled') && (
+            {!readOnly && (r.status !== 'paid' && r.status !== 'cancelled') && (
               <button onClick={() => { onStatusChange('paid'); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-green-700 hover:bg-green-50 transition text-left">
                 <CheckCircle size={14} /> Marcar pagado
               </button>
             )}
-            {r.status !== 'cancelled' && (
+            {!readOnly && r.status !== 'cancelled' && (
               <button onClick={() => { onStatusChange('cancelled'); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition text-left">
                 <XCircle size={14} /> Cancelar
               </button>
             )}
-            {r.status === 'cancelled' && (
+            {!readOnly && r.status === 'cancelled' && (
               <button onClick={() => { onStatusChange('pending'); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50 transition text-left">
                 <Clock size={14} /> Reactivar
               </button>
             )}
-            {r.status === 'cancelled' && (
+            {!readOnly && r.status === 'cancelled' && (
               <button onClick={() => { onDeleteReservation(); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-700 hover:bg-red-50 transition text-left">
                 <Trash2 size={14} /> Eliminar
               </button>
             )}
-            {user?.phone && (
+            {!readOnly && user?.phone && (
               <button onClick={() => { onNotifyPaid(); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-green-700 hover:bg-green-50 transition text-left">
                 <MessageCircle size={14} /> Avisar cupo completo
               </button>
             )}
-            {(r.status === 'deposit_paid' || r.status === 'paid') && (
+            {!readOnly && (r.status === 'deposit_paid' || r.status === 'paid') && (
               <button onClick={() => { onResendPaymentEmail(); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition text-left">
                 <Mail size={14} /> Reenviar mail de pago
               </button>
             )}
-            {r.status === 'pending' && (
+            {!readOnly && r.status === 'pending' && (
               <button onClick={() => { onSendExpirationWarning(); onClose() }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 transition text-left">
                 <AlertTriangle size={14} /> Avisar vencimiento (72 hs)
@@ -165,6 +170,8 @@ export default function ReservationsTab({
   onResendPaymentEmail = () => {},
   onSendExpirationWarning = () => {},
   orphanStands = [], onFreeStand = () => {}, onFreeAllOrphanStands = () => {},
+  onOpenQuickReservation = () => {},
+  readOnly = false,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [editingAmount, setEditingAmount] = useState(null) // reserva cuyo importe se está editando
@@ -179,7 +186,16 @@ export default function ReservationsTab({
 
   return (
     <div className="space-y-4">
-      {visibleOrphans.length > 0 && (
+      {!readOnly && (
+        <div className="flex items-center justify-end">
+          <button onClick={onOpenQuickReservation}
+            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm">
+            <Zap size={16} /> Carga rápida
+          </button>
+        </div>
+      )}
+
+      {!readOnly && visibleOrphans.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -240,7 +256,11 @@ export default function ReservationsTab({
             <select value={filterEventId} onChange={e => { setFilterEventId(e.target.value); goToPage(1) }}
               className="w-full sm:w-auto px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
               <option value="all">Todos los eventos</option>
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              {[...events].sort((a, b) => {
+                const aPast = a.status === 'past' ? 1 : 0
+                const bPast = b.status === 'past' ? 1 : 0
+                return aPast !== bPast ? aPast - bPast : new Date(a.date) - new Date(b.date)
+              }).map(ev => <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado)' : ''}</option>)}
             </select>
             <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); goToPage(1) }}
               className="w-full sm:w-auto px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
@@ -250,7 +270,7 @@ export default function ReservationsTab({
             <select value={filterCategory} onChange={e => { setFilterCategory(e.target.value); goToPage(1) }}
               className="col-span-2 sm:col-span-1 w-full sm:w-auto px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
               <option value="all">Todas las categorías</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {(filterEventId === 'all' ? categories : categories.filter(c => c.eventId === filterEventId)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
@@ -268,10 +288,12 @@ export default function ReservationsTab({
             </button>
           </div>
 
-          <button onClick={() => exportCSV(filteredRes, events, users, allStands, categories)}
-            className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
-            <Download size={14} /> Exportar CSV
-          </button>
+          {!readOnly && (
+            <button onClick={() => exportCSV(filteredRes, events, users, allStands, categories)}
+              className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
+              <Download size={14} /> Exportar CSV
+            </button>
+          )}
         </div>
       </div>
 
@@ -306,7 +328,10 @@ export default function ReservationsTab({
                 <div className={`px-5 py-3.5 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2 bg-gradient-to-r ${accent.header} rounded-t-2xl`}>
                   <div>
                     <p className="font-bold text-gray-900 text-sm">{ev?.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Stand {stand?.number} — {r.standName}</p>
+                    <p className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-xl font-extrabold text-gray-900">N° {stand?.number}</span>
+                      <span className="text-xs text-gray-400">— {r.standName}</span>
+                    </p>
                     {r.createdAt && <p className="text-[11px] text-violet-500 mt-0.5">Se anotó el {formatDateTime(r.createdAt)}</p>}
                     {isPartialDays && (
                       <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1">
@@ -331,10 +356,11 @@ export default function ReservationsTab({
                       onNotifyPaid={() => onNotifyPaid(r, ev, stand, user)}
                       onResendPaymentEmail={() => onResendPaymentEmail(r)}
                       onSendExpirationWarning={() => onSendExpirationWarning(r)}
+                      readOnly={readOnly}
                     />
                   </div>
                 </div>
-                <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div className={`px-5 py-4 grid grid-cols-2 gap-4 text-sm ${readOnly ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
                   <div className="flex items-center gap-2.5">
                     {user?.businessPhoto ? (
                       <img src={user.businessPhoto} alt={user.businessName || ''} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
@@ -357,13 +383,15 @@ export default function ReservationsTab({
                       </p>
                     ) : <p className="text-gray-400">—</p>}
                   </div>
-                  <div>
-                    <p className="text-[11px] text-gray-400 leading-none mb-1">Importe</p>
-                    <p className="font-bold text-violet-600">${r.amount.toLocaleString('es-AR')}</p>
-                    <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${PAYMENT_TYPE_STYLES[paymentType]}`}>
-                      {paymentTypeLabel}
-                    </span>
-                  </div>
+                  {!readOnly && (
+                    <div>
+                      <p className="text-[11px] text-gray-400 leading-none mb-1">Importe</p>
+                      <p className="font-bold text-violet-600">${r.amount.toLocaleString('es-AR')}</p>
+                      <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${PAYMENT_TYPE_STYLES[paymentType]}`}>
+                        {paymentTypeLabel}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <p className="text-[11px] text-gray-400 leading-none mb-1">Compartido</p>
                     <p className="font-medium flex items-center gap-1.5">

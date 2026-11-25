@@ -7,7 +7,7 @@ const ACTIVE_RESERVATION_STATUSES = ['pending', 'deposit_paid', 'paid', 'reserve
 // - si no: el estado de su solicitud ('pending' | 'rejected') o 'none'
 export function getEventAccess({ event, user, requests, reservations }) {
   if (!event?.requiresApproval) return { status: 'open' }
-  if (user?.role_id === 1) return { status: 'approved' }
+  if (user?.role_id === 1 || user?.role_id === 3) return { status: 'approved' }
 
   const request = requests.find(r => r.eventId === event.id && r.userId === user?.id)
   if (request?.status === 'approved') return { status: 'approved', request }

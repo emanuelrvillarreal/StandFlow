@@ -37,6 +37,27 @@ export default function EventModal({ open, isEditing, events, eventForm, setEven
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Color del evento (opcional)</label>
+              <div className="flex items-center gap-3">
+                <input type="color" value={eventForm.themeAccent || '#2ee6d6'}
+                  onChange={e => setEventForm({ ...eventForm, themeAccent: e.target.value })}
+                  className="w-12 h-11 rounded-xl border border-gray-200 cursor-pointer p-0.5" />
+                <input type="text" value={eventForm.themeAccent || ''} placeholder="Sin elegir: usa el celeste de Deckaria"
+                  onChange={e => setEventForm({ ...eventForm, themeAccent: e.target.value })}
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 outline-none transition text-sm" />
+                {eventForm.themeAccent && (
+                  <button type="button" onClick={() => setEventForm({ ...eventForm, themeAccent: '' })}
+                    className="px-3 py-3 text-xs font-semibold text-gray-500 hover:bg-gray-100 rounded-xl transition">
+                    Quitar
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+                Se usa como color principal en el mapa y la reserva de este evento (el resto de la paleta se deriva solo). Si no elegís uno, queda la paleta default de Deckaria.
+              </p>
+            </div>
+
+            <div>
               <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase mb-2 ml-1 cursor-pointer select-none">
                 <input
                   type="checkbox"

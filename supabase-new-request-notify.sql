@@ -37,47 +37,55 @@ declare
   emails text[];
   service_key text;
 begin
-  select name, notify_emails into ev from public.events where id = new.event_id;
+  -- El aviso por mail es un "mejor esfuerzo": si falla por lo que sea (falta
+  -- la extensión pg_net, el secret, la red, etc.) no tiene que frenar la
+  -- solicitud real del expositor. Se atrapa cualquier error y queda como
+  -- warning en los logs, nunca como un error que el expositor vea.
+  begin
+    select name, notify_emails into ev from public.events where id = new.event_id;
 
-  if ev.notify_emails is null or trim(ev.notify_emails) = '' then
-    return new;
-  end if;
+    if ev.notify_emails is null or trim(ev.notify_emails) = '' then
+      return new;
+    end if;
 
-  select coalesce(business_name, '') as business_name,
-         coalesce(first_name, '') as first_name,
-         coalesce(last_name, '') as last_name
-    into requester
-  from public.profiles where id = new.user_id;
+    select coalesce(business_name, '') as business_name,
+           coalesce(first_name, '') as first_name,
+           coalesce(last_name, '') as last_name
+      into requester
+    from public.profiles where id = new.user_id;
 
-  emails := string_to_array(regexp_replace(ev.notify_emails, '\s+', '', 'g'), ',');
+    emails := string_to_array(regexp_replace(ev.notify_emails, '\s+', '', 'g'), ',');
 
-  select decrypted_secret into service_key
-  from vault.decrypted_secrets where name = 'service_role_key';
+    select decrypted_secret into service_key
+    from vault.decrypted_secrets where name = 'service_role_key';
 
-  if service_key is null then
-    raise warning 'notify_new_event_request: falta el secret "service_role_key" en Vault, no se mandó el aviso.';
-    return new;
-  end if;
+    if service_key is null then
+      raise warning 'notify_new_event_request: falta el secret "service_role_key" en Vault, no se mandó el aviso.';
+      return new;
+    end if;
 
-  perform net.http_post(
-    url := 'https://fctdwbqpbyfdozucsonm.supabase.co/functions/v1/rapid-processor',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || service_key
-    ),
-    body := jsonb_build_object(
-      'kind', 'new_request',
-      'to', to_jsonb(emails),
-      'eventName', ev.name,
-      'eventId', new.event_id,
-      'eventRequestId', new.id,
-      'userId', new.user_id,
-      'requesterName', trim(both ' ' from (requester.first_name || ' ' || requester.last_name)),
-      'requesterBusiness', requester.business_name,
-      'requesterMessage', new.message,
-      'adminUrl', 'https://stands.deckaria.ar/admin'
-    )
-  );
+    perform net.http_post(
+      url := 'https://fctdwbqpbyfdozucsonm.supabase.co/functions/v1/rapid-processor',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || service_key
+      ),
+      body := jsonb_build_object(
+        'kind', 'new_request',
+        'to', to_jsonb(emails),
+        'eventName', ev.name,
+        'eventId', new.event_id,
+        'eventRequestId', new.id,
+        'userId', new.user_id,
+        'requesterName', trim(both ' ' from (requester.first_name || ' ' || requester.last_name)),
+        'requesterBusiness', requester.business_name,
+        'requesterMessage', new.message,
+        'adminUrl', 'https://stands.deckaria.ar/admin'
+      )
+    );
+  exception when others then
+    raise warning 'notify_new_event_request: no se pudo mandar el aviso (%): %', SQLSTATE, SQLERRM;
+  end;
 
   return new;
 end;

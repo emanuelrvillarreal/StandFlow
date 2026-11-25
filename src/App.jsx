@@ -23,7 +23,7 @@ function LoadingScreen() {
 function ExhibitorArea({ children }) {
   const { state } = useApp()
   if (state.loading) return <LoadingScreen />
-  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role_id === 1
+  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role_id === 1 || state.currentUser?.role_id === 3
   const isSponsor = !isAdmin && !!state.currentUser &&
     (state.sponsorRegistrations || []).some(r => r.userId === state.currentUser.id)
   if (isSponsor) return <Navigate to="/sponsor/panel" replace />
@@ -33,7 +33,7 @@ function ExhibitorArea({ children }) {
 function RequireAuth({ children, adminOnly = false, exhibitorOnly = false }) {
   const { state } = useApp()
   const location = useLocation()
-  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role_id === 1
+  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role_id === 1 || state.currentUser?.role_id === 3
 
   // Mientras se restaura la sesión (ej: al entrar directo a una URL o
   // refrescar la página) no hay que decidir todavía: si redirigimos acá
@@ -61,7 +61,7 @@ function DevBadge() {
 
 export default function App() {
   const { state } = useApp()
-  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role_id === 1
+  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role_id === 1 || state.currentUser?.role_id === 3
 
   return (
     <>

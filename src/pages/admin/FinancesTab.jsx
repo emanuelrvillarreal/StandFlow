@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Trash2, TrendingUp, TrendingDown, Wallet, Zap } from 'lucide-react'
 import { effectiveDepositPercent } from './adminHelpers'
 
@@ -19,8 +19,18 @@ function StatCard({ label, value, icon: Icon, tone }) {
 export default function FinancesTab({
   expenses, expenseForm, setExpenseForm, onAddExpense, onDeleteExpense,
   reservations, events, users,
+  selectedEventId, onSelectEventId = () => {},
   totalRevenue, totalManualIncome, totalExpenses, netRevenue,
 }) {
+  const selectedEvent = events.find(e => e.id === selectedEventId)
+
+  // El formulario de movimiento manual arranca apuntando al evento que estás
+  // mirando (si elegís otro a mano, se respeta hasta que cambies de evento).
+  useEffect(() => {
+    if (selectedEventId && selectedEventId !== 'all') {
+      setExpenseForm(prev => ({ ...prev, eventId: selectedEventId }))
+    }
+  }, [selectedEventId])
   const movements = useMemo(() => {
     const auto = reservations
       .filter(r => r.status === 'paid' || r.status === 'deposit_paid')
@@ -40,12 +50,12 @@ export default function FinancesTab({
             {
               id: `res-${r.id}-sena`, date: r.paidAt || r.createdAt,
               description: desc, amount: depositAmount,
-              kind: 'income', source: 'auto', paymentType: 'deposit',
+              kind: 'income', source: 'auto', paymentType: 'deposit', eventName: ev?.name || null,
             },
             {
               id: `res-${r.id}-saldo`, date: r.balancePaidAt,
               description: desc, amount: stand.price - depositAmount,
-              kind: 'income', source: 'auto', paymentType: 'balance',
+              kind: 'income', source: 'auto', paymentType: 'balance', eventName: ev?.name || null,
             },
           ]
         }
@@ -58,6 +68,7 @@ export default function FinancesTab({
           kind: 'income',
           source: 'auto',
           paymentType: r.paymentType || 'full',
+          eventName: ev?.name || null,
         }]
       })
 
@@ -69,6 +80,7 @@ export default function FinancesTab({
       amount: Number(e.amount),
       kind: e.type === 'income' ? 'income' : 'expense',
       source: 'manual',
+      eventName: e.event_id ? events.find(ev => ev.id === e.event_id)?.name : null,
     }))
 
     return [...auto, ...manual].sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -76,6 +88,22 @@ export default function FinancesTab({
 
   return (
     <div className="space-y-6">
+      {events.length > 1 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="text-sm font-medium text-gray-500">Mostrando datos de</label>
+          <select value={selectedEventId || 'all'} onChange={e => onSelectEventId(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold">
+            {events.map(ev => (
+              <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado · histórico)' : ''}</option>
+            ))}
+            <option value="all">Todos los eventos (combinado)</option>
+          </select>
+          {selectedEvent?.status === 'past' && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Histórico</span>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Ingresos por reservas" value={`$${totalRevenue.toLocaleString('es-AR')}`} icon={Zap} tone="text-violet-600 bg-violet-50" />
         <StatCard label="Ingresos manuales" value={`$${totalManualIncome.toLocaleString('es-AR')}`} icon={TrendingUp} tone="text-emerald-600 bg-emerald-50" />
@@ -108,6 +136,14 @@ export default function FinancesTab({
             <label className="block text-sm font-medium text-gray-700 mb-1">Monto ($)</label>
             <input type="number" value={expenseForm.amount} onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" placeholder="0" />
           </div>
+          <div className="w-full sm:w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Evento</label>
+            <select value={expenseForm.eventId || ''} onChange={e => setExpenseForm({ ...expenseForm, eventId: e.target.value })}
+              className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-violet-500 outline-none bg-white">
+              <option value="">General (solo se ve en "Todos los eventos")</option>
+              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+            </select>
+          </div>
           <button onClick={onAddExpense}
             className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-medium transition text-white ${expenseForm.type === 'income' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
             Registrar
@@ -135,7 +171,10 @@ export default function FinancesTab({
               {movements.map(m => (
                 <tr key={m.id} className="hover:bg-gray-50/50">
                   <td className="px-6 py-3.5 whitespace-nowrap">{m.date ? new Date(m.date).toLocaleDateString('es-AR') : '-'}</td>
-                  <td className="px-6 py-3.5 font-medium text-gray-800">{m.description}</td>
+                  <td className="px-6 py-3.5 font-medium text-gray-800">
+                    {m.description}
+                    {m.eventName && <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{m.eventName}</span>}
+                  </td>
                   <td className="px-6 py-3.5">
                     {m.source === 'auto' ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">

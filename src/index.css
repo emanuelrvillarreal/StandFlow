@@ -2,8 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Paleta default (Deckaria). Un evento puede pisar estas variables con un
+   estilo inline (ver src/lib/eventTheme.js) para tener sus propios colores
+   en su mapa/reserva, sin afectar al resto de la app. */
+:root {
+  --ink-950: #07070d;
+  --ink-900: #0b0b16;
+  --ink-800: #12121f;
+  --ink-700: #1a1a2b;
+  --ink-600: #26263d;
+  --ink-500: #3a3a57;
+  --muted: #a8a8cc;
+  --muted-dim: #83839f;
+  --accent: #2ee6d6;
+  --accent-soft: #7ff3e9;
+  --accent-dim: rgba(46, 230, 214, 0.16);
+  --accent-ring: rgba(46, 230, 214, 0.25);
+  --accent-glow: rgba(46, 230, 214, 0.15);
+  --accent2: #ff4fd8;
+  --accent2-dim: rgba(255, 79, 216, 0.16);
+}
+
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #07070d; }
+body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: var(--ink-950); }
 
 .stand-dot {
   position: absolute;

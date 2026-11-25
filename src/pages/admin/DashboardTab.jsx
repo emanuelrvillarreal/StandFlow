@@ -2,25 +2,49 @@ import { Clock, CheckCircle, Map, TrendingUp, TrendingDown } from 'lucide-react'
 import { formatEventDate } from '../../lib/formatEventDate'
 
 export default function DashboardTab({
-  events, reservations, categories,
+  events, reservations, allReservations, categories,
+  selectedEventId, onSelectEventId = () => {},
   totalPending, totalDeposit, totalPaid, totalAvailable,
   totalPendingAmount = 0, totalDepositRemaining = 0,
   totalRevenue, totalExpenses, netRevenue, navigate,
+  hideAmounts = false,
 }) {
   const money = n => `$${n.toLocaleString('es-AR')}`
+  const selectedEvent = events.find(e => e.id === selectedEventId)
+  const visibleCategories = selectedEventId === 'all' ? categories : categories.filter(c => c.eventId === selectedEventId)
+
+  const stats = [
+    { label: 'Pendientes', value: totalPending, icon: Clock, color: 'text-yellow-600 bg-yellow-50', sub: !hideAmounts && totalPendingAmount > 0 ? `Faltan ${money(totalPendingAmount)}` : null },
+    { label: 'Señas Pagas', value: totalDeposit, icon: CheckCircle, color: 'text-orange-600 bg-orange-50', sub: !hideAmounts && totalDepositRemaining > 0 ? `Faltan ${money(totalDepositRemaining)}` : null },
+    { label: 'Pagados', value: totalPaid, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
+    { label: 'Disponibles', value: totalAvailable, icon: Map, color: 'text-blue-600 bg-blue-50' },
+    ...(hideAmounts ? [] : [
+      { label: 'Ingresos', value: money(totalRevenue), icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
+      { label: 'Egresos', value: `-${money(totalExpenses)}`, icon: TrendingDown, color: 'text-red-600 bg-red-50' },
+      { label: 'Saldo Neto', value: money(netRevenue), icon: netRevenue >= 0 ? TrendingUp : TrendingDown, color: netRevenue >= 0 ? 'text-violet-600 bg-violet-50' : 'text-red-600 bg-red-50' },
+    ]),
+  ]
 
   return (
     <div className="space-y-6">
+      {events.length > 1 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="text-sm font-medium text-gray-500">Mostrando datos de</label>
+          <select value={selectedEventId || 'all'} onChange={e => onSelectEventId(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold">
+            {events.map(ev => (
+              <option key={ev.id} value={ev.id}>{ev.name}{ev.status === 'past' ? ' (finalizado)' : ''}</option>
+            ))}
+            <option value="all">Todos los eventos (combinado)</option>
+          </select>
+          {selectedEvent?.status === 'past' && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Evento finalizado</span>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-        {[
-          { label: 'Pendientes', value: totalPending, icon: Clock, color: 'text-yellow-600 bg-yellow-50', sub: totalPendingAmount > 0 ? `Faltan ${money(totalPendingAmount)}` : null },
-          { label: 'Señas Pagas', value: totalDeposit, icon: CheckCircle, color: 'text-orange-600 bg-orange-50', sub: totalDepositRemaining > 0 ? `Faltan ${money(totalDepositRemaining)}` : null },
-          { label: 'Pagados', value: totalPaid, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-          { label: 'Disponibles', value: totalAvailable, icon: Map, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Ingresos', value: money(totalRevenue), icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Egresos', value: `-${money(totalExpenses)}`, icon: TrendingDown, color: 'text-red-600 bg-red-50' },
-          { label: 'Saldo Neto', value: money(netRevenue), icon: netRevenue >= 0 ? TrendingUp : TrendingDown, color: netRevenue >= 0 ? 'text-violet-600 bg-violet-50' : 'text-red-600 bg-red-50' },
-        ].map(stat => (
+        {stats.map(stat => (
           <div key={stat.label} className="bg-white rounded-2xl shadow-sm border p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className={`w-7 h-7 ${stat.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -37,7 +61,7 @@ export default function DashboardTab({
       <div className="bg-white rounded-2xl shadow-sm border p-5">
         <h3 className="font-bold text-gray-800 mb-4">Distribución por categoría</h3>
         <div className="space-y-3">
-          {categories.map(cat => {
+          {visibleCategories.map(cat => {
             const count = reservations.filter(r => r.categoryId === cat.id).length
             const total = reservations.length || 1
             return (
@@ -60,7 +84,7 @@ export default function DashboardTab({
         <h3 className="font-bold text-gray-800 mb-4">Resumen por evento</h3>
         <div className="space-y-3">
           {events.map(ev => {
-            const evRes = reservations.filter(r => r.eventId === ev.id)
+            const evRes = (allReservations || reservations).filter(r => r.eventId === ev.id)
             return (
               <div key={ev.id} className="flex items-center justify-between py-2 border-b last:border-0">
                 <div>

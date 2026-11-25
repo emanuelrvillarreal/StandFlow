@@ -11,6 +11,8 @@ export default function UserModal({
 
   const set = (k, v) => setUserForm({ ...userForm, [k]: v })
   const isAdminRole = Number(userForm.role_id) === 1
+  // Ni el admin ni el visualizador tienen cupo de stands (no son expositores).
+  const hasNoQuota = isAdminRole || Number(userForm.role_id) === 3
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
@@ -75,15 +77,16 @@ export default function UserModal({
             </div>
           )}
 
-          <div className={`grid gap-3 ${isAdminRole ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 ${hasNoQuota ? 'grid-cols-1' : 'grid-cols-2'}`}>
             <div>
               <label className={labelCls}>Tipo de usuario</label>
               <select value={userForm.role_id} onChange={e => set('role_id', Number(e.target.value))} className={`${inputCls} bg-white`}>
                 <option value={2}>Expositor</option>
                 <option value={1}>Administrador</option>
+                <option value={3}>Visualizador (solo lectura)</option>
               </select>
             </div>
-            {!isAdminRole && (
+            {!hasNoQuota && (
               <div>
                 <label className={labelCls}>Stands por evento</label>
                 <input type="number" min="1" max="99" value={userForm.maxStands ?? 1}
@@ -93,10 +96,17 @@ export default function UserModal({
               </div>
             )}
           </div>
-          {!isAdminRole && (
+          {!hasNoQuota && (
             <p className="text-[11px] text-gray-400 -mt-1.5 leading-relaxed">
               Cuántos stands puede reservar esta cuenta en cada evento. Los expositores normales tienen 1;
               subilo solo para quienes necesiten más de un lugar. Los administradores no tienen límite.
+            </p>
+          )}
+          {Number(userForm.role_id) === 3 && (
+            <p className="text-[11px] text-gray-400 -mt-1.5 leading-relaxed">
+              El Visualizador entra al panel admin, puede ver usuarios, reservas y el estado de pago, y además puede
+              crear, editar y borrar stands en el mapa. No puede crear/modificar usuarios ni eventos, ni ver montos
+              de dinero (Dashboard sin plata, Finanzas no le aparece).
             </p>
           )}
         </div>
