@@ -661,7 +661,8 @@ export function AppProvider({ children }) {
         paymentType: r.payment_type || 'full',
         paidAt: r.paid_at,
         balancePaidAt: r.balance_paid_at,
-        createdAt: r.created_at
+        createdAt: r.created_at,
+        createdBy: r.created_by
       }))
 
       const mappedStandsWithReservations = applyReservationsToStands(mappedStands, mappedReservations)

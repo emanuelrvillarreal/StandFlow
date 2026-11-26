@@ -67,21 +67,29 @@ function initials(a, b) {
   return `${(a || '?')[0] || ''}${(b || '')[0] || ''}`.toUpperCase()
 }
 
+function creatorLabelFor(person, users) {
+  if (!person.created_by) return null
+  const creator = users.find(u => u.id === person.created_by)
+  if (!creator) return null
+  const name = `${creator.name} ${creator.lastName || ''}`.trim()
+  return creator.role_id === 3 ? `${name} (Visualizador)` : name
+}
+
 const editInputCls = 'px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 function PersonRow({
   person, title, badgeCls, readOnly, onTogglePaid, onDelete,
-  isEditing, editForm, setEditForm, onStartEdit, onSaveEdit, onCancelEdit, saving,
+  isEditing, editForm, setEditForm, onStartEdit, onSaveEdit, onCancelEdit, saving, creatorLabel,
 }) {
   if (isEditing) {
     return (
       <div className="bg-violet-50/60 border border-violet-200 rounded-xl px-3.5 py-3 space-y-2">
         <div className="grid grid-cols-2 gap-2">
-          <input type="text" placeholder="Nombre" value={editForm.first_name} onChange={e => setEditForm({ ...editForm, first_name: e.target.value })} className={editInputCls} />
-          <input type="text" placeholder="Apellido" value={editForm.last_name} onChange={e => setEditForm({ ...editForm, last_name: e.target.value })} className={editInputCls} />
+          <input type="text" placeholder="Nombre *" value={editForm.first_name} onChange={e => setEditForm({ ...editForm, first_name: e.target.value })} className={editInputCls} />
+          <input type="text" placeholder="Apellido *" value={editForm.last_name} onChange={e => setEditForm({ ...editForm, last_name: e.target.value })} className={editInputCls} />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <input type="text" placeholder="DNI" value={editForm.dni} onChange={e => setEditForm({ ...editForm, dni: e.target.value })} className={editInputCls} />
+          <input type="text" placeholder="DNI *" value={editForm.dni} onChange={e => setEditForm({ ...editForm, dni: e.target.value })} className={editInputCls} />
           <input type="date" value={editForm.birth_date} onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })} className={editInputCls} />
         </div>
         <input type="number" min="0" placeholder="Monto a cobrarle por fuera (opcional)" value={editForm.amount}
@@ -114,7 +122,7 @@ function PersonRow({
           <p className="text-gray-500 text-xs mt-0.5 flex items-center gap-2.5 flex-wrap">
             <span className="flex items-center gap-1"><Hash size={11} /> {person.dni}</span>
             <span className="flex items-center gap-1"><Calendar size={11} /> {formatBirthDate(person.birth_date)}</span>
-            {person.added_by_admin && <span className="text-violet-500">cargado por el admin</span>}
+            {person.added_by_admin && <span className="text-violet-500">cargado por {creatorLabel || 'el admin'}</span>}
           </p>
         </div>
       </div>
@@ -143,7 +151,7 @@ function PersonRow({
 // Gestión de seguros (titular + acompañantes) por evento. Se usa antes del
 // evento, para juntar los datos que hay que mandarle a la compañía de
 // seguros — distinto de Asistencia, que es el día del evento.
-export default function InsuranceTab({ events, reservations, users, categories = [], readOnly = false, onAddExpenseRecord = () => {}, onRemoveExpenseRecord = () => {} }) {
+export default function InsuranceTab({ events, reservations, users, categories = [], currentUser = null, readOnly = false, allowCreate = !readOnly, onAddExpenseRecord = () => {}, onRemoveExpenseRecord = () => {} }) {
   const sortedEvents = useMemo(() => {
     const active = events.filter(ev => ev.status !== 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
     const past = events.filter(ev => ev.status === 'past').sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -240,7 +248,7 @@ export default function InsuranceTab({ events, reservations, users, categories =
       first_name: personForm.first_name.trim(), last_name: personForm.last_name.trim(),
       dni: personForm.dni.trim(), birth_date: personForm.birth_date,
       amount: personForm.amount === '' ? null : Number(personForm.amount),
-      added_by_admin: true, position,
+      added_by_admin: true, created_by: currentUser?.id || null, position,
     }).select().single()
     setSaving(false)
     if (error) { setErr(`No se pudo agregar: ${error.message}`); return }
@@ -455,7 +463,8 @@ export default function InsuranceTab({ events, reservations, users, categories =
                   isEditing={editingPersonId === row.titular.id} editForm={editForm} setEditForm={setEditForm}
                   onStartEdit={() => startEditPerson(row.titular)}
                   onSaveEdit={() => handleSaveEditPerson(row.reservation.id, row.titular.id)}
-                  onCancelEdit={cancelEditPerson} saving={savingEdit} />
+                  onCancelEdit={cancelEditPerson} saving={savingEdit}
+                  creatorLabel={creatorLabelFor(row.titular, users)} />
               )}
               {row.companions.map(p => (
                 <PersonRow key={p.id} person={p} title="Acompañante" badgeCls="bg-gray-200 text-gray-600" readOnly={readOnly}
@@ -464,10 +473,11 @@ export default function InsuranceTab({ events, reservations, users, categories =
                   isEditing={editingPersonId === p.id} editForm={editForm} setEditForm={setEditForm}
                   onStartEdit={() => startEditPerson(p)}
                   onSaveEdit={() => handleSaveEditPerson(row.reservation.id, p.id)}
-                  onCancelEdit={cancelEditPerson} saving={savingEdit} />
+                  onCancelEdit={cancelEditPerson} saving={savingEdit}
+                  creatorLabel={creatorLabelFor(p, users)} />
               ))}
 
-              {!readOnly && (addingFor === row.reservation.id ? (
+              {allowCreate && (addingFor === row.reservation.id ? (
                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
                   {err && <p className="text-xs text-red-600">{err}</p>}
                   {!row.titular && (
@@ -483,12 +493,12 @@ export default function InsuranceTab({ events, reservations, users, categories =
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2">
-                    <input type="text" placeholder="Nombre" value={personForm.first_name} onChange={e => setPersonForm({ ...personForm, first_name: e.target.value })}
+                    <input type="text" placeholder="Nombre *" value={personForm.first_name} onChange={e => setPersonForm({ ...personForm, first_name: e.target.value })}
                       className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
-                    <input type="text" placeholder="Apellido" value={personForm.last_name} onChange={e => setPersonForm({ ...personForm, last_name: e.target.value })}
+                    <input type="text" placeholder="Apellido *" value={personForm.last_name} onChange={e => setPersonForm({ ...personForm, last_name: e.target.value })}
                       className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                   </div>
-                  <input type="text" placeholder="DNI" value={personForm.dni} onChange={e => setPersonForm({ ...personForm, dni: e.target.value })}
+                  <input type="text" placeholder="DNI *" value={personForm.dni} onChange={e => setPersonForm({ ...personForm, dni: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                   <input type="date" value={personForm.birth_date} onChange={e => setPersonForm({ ...personForm, birth_date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />

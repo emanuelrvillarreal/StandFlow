@@ -172,6 +172,7 @@ export default function ReservationsTab({
   orphanStands = [], onFreeStand = () => {}, onFreeAllOrphanStands = () => {},
   onOpenQuickReservation = () => {},
   readOnly = false,
+  allowQuickReservation = !readOnly,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [editingAmount, setEditingAmount] = useState(null) // reserva cuyo importe se está editando
@@ -186,7 +187,7 @@ export default function ReservationsTab({
 
   return (
     <div className="space-y-4">
-      {!readOnly && (
+      {allowQuickReservation && (
         <div className="flex items-center justify-end">
           <button onClick={onOpenQuickReservation}
             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm">
@@ -349,7 +350,7 @@ export default function ReservationsTab({
                       open={openMenuId === r.id}
                       onToggle={() => setOpenMenuId(openMenuId === r.id ? null : r.id)}
                       onClose={() => setOpenMenuId(null)}
-                      onViewDetail={() => onViewDetail({ reservation: r, event: ev, stand, user, category: cat })}
+                      onViewDetail={() => onViewDetail({ reservation: r, event: ev, stand, user, category: cat, creator: users.find(u => u.id === r.createdBy) })}
                       onStatusChange={(status) => onStatusChange(r.id, status)}
                       onEditAmount={() => { setEditingAmount(r); setAmountDraft(String(r.amount ?? 0)) }}
                       onDeleteReservation={() => onDeleteReservation(r)}

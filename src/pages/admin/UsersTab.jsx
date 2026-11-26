@@ -3,7 +3,7 @@ import { formatBirthDate, formatDateTime } from '../../lib/formatDateTime'
 import { exportUsersCSV } from './adminHelpers'
 import { Plus, Edit2, Trash2, KeyRound, Search, ShieldOff, ShieldCheck, Skull, ChevronDown, RotateCcw, Eye, ArrowDownNarrowWide, ArrowUpNarrowWide, Download } from 'lucide-react'
 
-export default function UsersTab({ users, reservations, events = [], eventRequests = [], onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, onViewUser = () => {}, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {}, readOnly = false }) {
+export default function UsersTab({ users, reservations, events = [], eventRequests = [], onOpenCreateUser, onOpenEditUser, onDeleteUser, onResetPassword, onBlockUser, onUnblockUser, onViewUser = () => {}, isSysadmin = false, deletedUsers = [], onPurgeUser, onPurgeMany = () => {}, onReactivateUser = () => {}, readOnly = false, allowCreate = !readOnly }) {
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState('desc')
   const [showDeleted, setShowDeleted] = useState(false)
@@ -69,7 +69,7 @@ export default function UsersTab({ users, reservations, events = [], eventReques
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-gray-500">{users.length} usuarios registrados</p>
-        {!readOnly && (
+        {allowCreate && (
           <button
             onClick={onOpenCreateUser}
             className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm"

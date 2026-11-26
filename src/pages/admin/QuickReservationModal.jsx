@@ -93,14 +93,15 @@ export default function QuickReservationModal({
             {form.isNewUser ? (
               <div className="space-y-2.5">
                 <div className="grid grid-cols-2 gap-2.5">
-                  <input type="text" placeholder="Nombre" value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
-                  <input type="text" placeholder="Apellido" value={form.lastName} onChange={e => set('lastName', e.target.value)} className={inputCls} />
+                  <input type="text" placeholder="Nombre *" value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
+                  <input type="text" placeholder="Apellido *" value={form.lastName} onChange={e => set('lastName', e.target.value)} className={inputCls} />
                 </div>
                 <input type="text" placeholder="Emprendimiento (opcional)" value={form.businessName} onChange={e => set('businessName', e.target.value)} className={inputCls} />
                 <div className="grid grid-cols-2 gap-2.5">
-                  <input type="email" placeholder="Email" value={form.email} onChange={e => set('email', e.target.value)} className={inputCls} />
+                  <input type="email" placeholder="Email *" value={form.email} onChange={e => set('email', e.target.value)} className={inputCls} />
                   <input type="tel" placeholder="Teléfono (opcional)" value={form.phone} onChange={e => set('phone', e.target.value)} className={inputCls} />
                 </div>
+                <input type="text" placeholder="DNI / CUIT *" value={form.dni} onChange={e => set('dni', e.target.value)} className={inputCls} />
                 <div className="relative">
                   <input type={showPassword ? 'text' : 'password'} placeholder="Contraseña (opcional, para pasarle a la persona)"
                     value={form.password} onChange={e => set('password', e.target.value)} className={`${inputCls} pr-10`} />

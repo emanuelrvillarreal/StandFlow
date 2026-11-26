@@ -5,7 +5,7 @@ const labelCls = 'block text-[11px] font-bold text-gray-500 uppercase mb-1 ml-0.
 
 export default function UserModal({
   open, editingUser, userForm, setUserForm, userError, savingUser,
-  onClose, onSave,
+  onClose, onSave, hideAdminRole = false,
 }) {
   if (!open) return null
 
@@ -37,11 +37,11 @@ export default function UserModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Nombre</label>
+              <label className={labelCls}>Nombre *</label>
               <input type="text" value={userForm.name} onChange={e => set('name', e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Apellido</label>
+              <label className={labelCls}>Apellido *</label>
               <input type="text" value={userForm.lastName} onChange={e => set('lastName', e.target.value)} className={inputCls} />
             </div>
           </div>
@@ -53,7 +53,7 @@ export default function UserModal({
           </div>
 
           <div>
-            <label className={labelCls}>Email</label>
+            <label className={labelCls}>Email *</label>
             <input type="email" value={userForm.email} onChange={e => set('email', e.target.value)}
               disabled={!!editingUser} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`} />
           </div>
@@ -70,14 +70,14 @@ export default function UserModal({
           </div>
 
           <div>
-            <label className={labelCls}>DNI / CUIT</label>
+            <label className={labelCls}>DNI / CUIT{!editingUser ? ' *' : ''}</label>
             <input type="text" value={userForm.dni || ''} onChange={e => set('dni', e.target.value)}
-              placeholder="Identificación fiscal de la cuenta (opcional)" className={inputCls} />
+              placeholder={editingUser ? 'Identificación fiscal de la cuenta (opcional)' : 'Obligatorio para cuentas nuevas'} className={inputCls} />
           </div>
 
           {!editingUser && (
             <div>
-              <label className={labelCls}>Contraseña inicial</label>
+              <label className={labelCls}>Contraseña inicial *</label>
               <input type="password" value={userForm.password} onChange={e => set('password', e.target.value)}
                 autoComplete="new-password" className={inputCls} />
             </div>
@@ -88,7 +88,7 @@ export default function UserModal({
               <label className={labelCls}>Tipo de usuario</label>
               <select value={userForm.role_id} onChange={e => set('role_id', Number(e.target.value))} className={`${inputCls} bg-white`}>
                 <option value={2}>Expositor</option>
-                <option value={1}>Administrador</option>
+                {!hideAdminRole && <option value={1}>Administrador</option>}
                 <option value={3}>Visualizador (solo lectura)</option>
               </select>
             </div>
@@ -110,9 +110,10 @@ export default function UserModal({
           )}
           {Number(userForm.role_id) === 3 && (
             <p className="text-[11px] text-gray-400 -mt-1.5 leading-relaxed">
-              El Visualizador entra al panel admin, puede ver usuarios, reservas y el estado de pago, y además puede
-              crear, editar y borrar stands en el mapa. No puede crear/modificar usuarios ni eventos, ni ver montos
-              de dinero (Dashboard sin plata, Finanzas no le aparece).
+              El Visualizador entra al panel admin, puede ver usuarios, reservas y el estado de pago, crear, editar y
+              borrar stands en el mapa, aprobar/rechazar solicitudes de stand y crear usuarios nuevos (nunca
+              administradores). No puede editar ni borrar usuarios existentes, ni tocar eventos, ni ver montos de
+              dinero (Dashboard sin plata, Finanzas no le aparece).
             </p>
           )}
         </div>

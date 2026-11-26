@@ -10,6 +10,7 @@ import MapPage from './pages/MapPage'
 import MyReservationsPage from './pages/MyReservationsPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
+import DniRequiredModal from './components/DniRequiredModal'
 
 function LoadingScreen() {
   return (
@@ -66,6 +67,7 @@ export default function App() {
   return (
     <>
     <DevBadge />
+    <DniRequiredModal />
     <Routes>
       <Route path="/" element={state.loading ? <LoadingScreen/> : <Navigate to={isAdmin ? '/admin' : '/events'}/>} />
       <Route path="/login" element={!state.loading && state.currentUser ? <Navigate to={isAdmin ? '/admin' : '/events'}/> : <LoginPage/>} />

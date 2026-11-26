@@ -37,6 +37,7 @@ export default function UserDetailModal({ user, reservationsCount = 0, onClose }
             <Field label="Emprendimiento" value={user.businessName} />
             <Field label="Email" value={user.email} />
             <Field label="Teléfono" value={user.phone} />
+            <Field label="DNI / CUIT" value={user.dni} />
             <Field label="Instagram" value={user.instagram} />
             <Field label="Fecha de nacimiento" value={formatBirthDate(user.birthDate)} />
             <Field label="Tipo de cuenta" value={user.role_id === 1 ? (user.isSysadmin ? 'Sysadmin' : 'Admin') : user.role_id === 3 ? 'Visualizador' : 'Expositor'} />

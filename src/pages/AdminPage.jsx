@@ -44,9 +44,11 @@ export default function AdminPage() {
   const { events, reservations, users, categories, currentUser, expenses } = state
   const eventRequests = state.eventRequests || []
   // El rol "Visualizador" entra al panel admin: ve usuarios, stands/mapa y el
-  // estado de pago de las reservas, y puede crear/editar/borrar stands en el
-  // mapa. No puede tocar usuarios/eventos ni ver montos de dinero (Dashboard
-  // sin plata, sin acceso a Finanzas).
+  // estado de pago de las reservas, puede crear/editar/borrar stands en el
+  // mapa, aprobar/rechazar solicitudes de stand y crear usuarios nuevos
+  // (nunca administradores: eso lo bloquea el trigger en la base). No puede
+  // editar/bloquear/borrar usuarios existentes, ni tocar eventos, ni ver
+  // montos de dinero (Dashboard sin plata, sin acceso a Finanzas).
   const isViewer = currentUser?.role_id === 3
   const [tab, setTab] = useState('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -68,7 +70,7 @@ export default function AdminPage() {
   const EMPTY_QUICK_RES_FORM = {
     eventId: '', standId: '', categoryId: '',
     isNewUser: true, existingUserId: '',
-    name: '', lastName: '', businessName: '', email: '', phone: '', password: '',
+    name: '', lastName: '', businessName: '', email: '', phone: '', dni: '', password: '',
     paymentStatus: 'paid', amount: '',
   }
   const [showQuickResModal, setShowQuickResModal] = useState(false)
@@ -1065,6 +1067,11 @@ export default function AdminPage() {
       return
     }
 
+    if (!editingUser && !userForm.dni.trim()) {
+      setUserError('Completá el DNI/CUIT')
+      return
+    }
+
     if (!editingUser && userForm.password.length < 6) {
       setUserError('La contraseña debe tener al menos 6 caracteres')
       return
@@ -1095,6 +1102,7 @@ export default function AdminPage() {
               name: userForm.name,
               lastName: userForm.lastName,
               phone: userForm.phone,
+              dni: userForm.dni.trim(),
             },
           },
         })
@@ -1156,6 +1164,10 @@ export default function AdminPage() {
           setQuickResError('Completá nombre, apellido y email de la persona.')
           return
         }
+        if (!quickResForm.dni.trim()) {
+          setQuickResError('Completá el DNI/CUIT de la persona.')
+          return
+        }
         if (quickResForm.password && quickResForm.password.length < 6) {
           setQuickResError('La contraseña tiene que tener al menos 6 caracteres.')
           return
@@ -1165,7 +1177,7 @@ export default function AdminPage() {
         const { data, error: signUpError } = await authClient.auth.signUp({
           email: quickResForm.email.trim(),
           password,
-          options: { data: { name: quickResForm.name, lastName: quickResForm.lastName, phone: quickResForm.phone } },
+          options: { data: { name: quickResForm.name, lastName: quickResForm.lastName, phone: quickResForm.phone, dni: quickResForm.dni.trim() } },
         })
         if (signUpError) { setQuickResError(signUpError.message); return }
         if (!data.user?.id) { setQuickResError('Supabase no devolvió el usuario creado. Revisá la configuración de confirmación por email.'); return }
@@ -1174,7 +1186,7 @@ export default function AdminPage() {
         const newUser = {
           id: userId, name: quickResForm.name.trim(), lastName: quickResForm.lastName.trim(),
           businessName, email: quickResForm.email.trim(), phone: quickResForm.phone.trim(),
-          role_id: 2, maxStands: 1,
+          dni: quickResForm.dni.trim(), role_id: 2, maxStands: 1,
         }
         const { error: profileError } = await supabase.from('profiles').upsert(toProfileRow(newUser), { onConflict: 'id' })
         if (profileError) { setQuickResError(profileError.message); return }
@@ -1208,6 +1220,7 @@ export default function AdminPage() {
         status: quickResForm.paymentStatus,
         amount, payment_type: quickResForm.paymentStatus === 'deposit_paid' ? 'deposit' : 'full',
         created_at: nowIso, paid_at: quickResForm.paymentStatus !== 'pending' ? nowIso : null,
+        created_by: currentUser?.id || null,
       }
       const { error: resError } = await supabase.from('reservations').insert(reservationRow)
       if (resError) {
@@ -1668,7 +1681,7 @@ export default function AdminPage() {
             notificationLog={notificationLog}
             loadingNotificationLog={loadingNotificationLog}
             onLoadNotificationLog={loadNotificationLog}
-            readOnly={isViewer}
+            readOnly={false}
           />
         )}
 
@@ -1685,7 +1698,9 @@ export default function AdminPage() {
         {tab === 'insurance' && (
           <InsuranceTab
             events={events} reservations={reservations} users={users} categories={categories}
+            currentUser={currentUser}
             readOnly={isViewer}
+            allowCreate
             onAddExpenseRecord={expense => dispatch({ type: 'ADD_EXPENSE', expense })}
             onRemoveExpenseRecord={id => dispatch({ type: 'DELETE_EXPENSE', id })}
           />
@@ -1726,6 +1741,7 @@ export default function AdminPage() {
             onFreeAllOrphanStands={requestFreeAllOrphanStands}
             onOpenQuickReservation={openQuickResModal}
             readOnly={isViewer}
+            allowQuickReservation
           />
         )}
 
@@ -1767,6 +1783,7 @@ export default function AdminPage() {
             onUnblockUser={handleUnblockUser}
             onViewUser={setViewingUser}
             readOnly={isViewer}
+            allowCreate
           />
         )}
 
@@ -1789,6 +1806,9 @@ export default function AdminPage() {
         onResendPaymentEmail={handleResendPaymentEmail}
         onSendExpirationWarning={handleSendExpirationWarning}
         readOnly={isViewer}
+        allowAddInsurance
+        currentUser={currentUser}
+        users={users}
       />
 
       <UserModal
@@ -1800,6 +1820,7 @@ export default function AdminPage() {
         savingUser={savingUser}
         onClose={() => setShowUserModal(false)}
         onSave={handleSaveUser}
+        hideAdminRole={isViewer}
       />
 
       <UserDetailModal

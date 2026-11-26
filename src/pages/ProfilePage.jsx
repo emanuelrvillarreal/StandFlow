@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { supabase } from '../lib/supabase'
 import { compressAndUploadImage } from '../lib/uploadImage'
-import { ArrowLeft, Camera, Instagram, Store, Zap, Cake } from 'lucide-react'
+import { ArrowLeft, Camera, Instagram, Store, Zap, Cake, IdCard } from 'lucide-react'
 
 export default function ProfilePage() {
   const { state, dispatch } = useApp()
@@ -15,6 +15,7 @@ export default function ProfilePage() {
     instagram: currentUser?.instagram || '',
     businessPhoto: currentUser?.businessPhoto || '',
     birthDate: currentUser?.birthDate || '',
+    dni: currentUser?.dni || '',
   })
   const todayISO = new Date().toISOString().slice(0, 10)
   const [saving, setSaving] = useState(false)
@@ -59,6 +60,7 @@ export default function ProfilePage() {
         instagram: form.instagram || null,
         business_photo: form.businessPhoto || null,
         birth_date: form.birthDate || null,
+        dni: form.dni.trim() || null,
       })
       .eq('id', currentUser.id)
 
@@ -139,6 +141,16 @@ export default function ProfilePage() {
               onChange={e => setForm({ ...form, birthDate: e.target.value })}
               className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:dark]" />
             {!form.birthDate && <p className="text-xs text-yellow-300/90 mt-1.5">Todavía no cargaste tu fecha de nacimiento.</p>}
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-muted mb-1.5">
+              <IdCard size={14} /> DNI / CUIT
+            </label>
+            <input type="text" value={form.dni} onChange={e => setForm({ ...form, dni: e.target.value })}
+              placeholder="20123456789"
+              className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+            {!form.dni && <p className="text-xs text-yellow-300/90 mt-1.5">Todavía no cargaste tu DNI/CUIT.</p>}
           </div>
 
           <button onClick={handleSave} disabled={saving}

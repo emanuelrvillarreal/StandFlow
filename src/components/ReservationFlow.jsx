@@ -280,15 +280,15 @@ export default function ReservationFlow({ stand, event, onClose }) {
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Titular del stand</p>
               <div className="grid grid-cols-2 gap-3">
-                <input type="text" required placeholder="Nombre" value={insurance.titularFirstName} onChange={e => setIns('titularFirstName', e.target.value)}
+                <input type="text" required placeholder="Nombre *" value={insurance.titularFirstName} onChange={e => setIns('titularFirstName', e.target.value)}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
-                <input type="text" required placeholder="Apellido" value={insurance.titularLastName} onChange={e => setIns('titularLastName', e.target.value)}
+                <input type="text" required placeholder="Apellido *" value={insurance.titularLastName} onChange={e => setIns('titularLastName', e.target.value)}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
               </div>
-              <input type="text" required placeholder="DNI" value={insurance.titularDni} onChange={e => setIns('titularDni', e.target.value)}
+              <input type="text" required placeholder="DNI *" value={insurance.titularDni} onChange={e => setIns('titularDni', e.target.value)}
                 className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
               <div>
-                <label className="block text-xs text-muted mb-1">Fecha de nacimiento</label>
+                <label className="block text-xs text-muted mb-1">Fecha de nacimiento *</label>
                 <input type="date" required min="1900-01-01" max={new Date().toISOString().slice(0,10)} value={insurance.titularBirthDate} onChange={e => setIns('titularBirthDate', e.target.value)}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
               </div>
@@ -325,15 +325,15 @@ export default function ReservationFlow({ stand, event, onClose }) {
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-white">Acompañante 1</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <input type="text" required placeholder="Nombre" value={insurance.companionFirstName} onChange={e => setIns('companionFirstName', e.target.value)}
+                    <input type="text" required placeholder="Nombre *" value={insurance.companionFirstName} onChange={e => setIns('companionFirstName', e.target.value)}
                       className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
-                    <input type="text" required placeholder="Apellido" value={insurance.companionLastName} onChange={e => setIns('companionLastName', e.target.value)}
+                    <input type="text" required placeholder="Apellido *" value={insurance.companionLastName} onChange={e => setIns('companionLastName', e.target.value)}
                       className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
                   </div>
-                  <input type="text" required placeholder="DNI" value={insurance.companionDni} onChange={e => setIns('companionDni', e.target.value)}
+                  <input type="text" required placeholder="DNI *" value={insurance.companionDni} onChange={e => setIns('companionDni', e.target.value)}
                     className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
                   <div>
-                    <label className="block text-xs text-muted mb-1">Fecha de nacimiento</label>
+                    <label className="block text-xs text-muted mb-1">Fecha de nacimiento *</label>
                     <input type="date" required min="1900-01-01" max={new Date().toISOString().slice(0,10)} value={insurance.companionBirthDate} onChange={e => setIns('companionBirthDate', e.target.value)}
                       className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
                   </div>

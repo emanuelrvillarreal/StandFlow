@@ -6,7 +6,7 @@ import BrandFooter from '../components/BrandFooter'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', lastName: '', businessName: '', email: '', phone: '', birthDate: '', password: '', confirm: '' })
+  const [form, setForm] = useState({ name: '', lastName: '', businessName: '', email: '', phone: '', birthDate: '', dni: '', password: '', confirm: '' })
   const todayISO = new Date().toISOString().slice(0, 10)
   const [error, setError] = useState('')
 
@@ -15,6 +15,7 @@ export default function RegisterPage() {
     setError('')
     if (!form.birthDate) { setError('Ingresá tu fecha de nacimiento'); return }
     if (form.birthDate > todayISO || form.birthDate < '1900-01-01') { setError('La fecha de nacimiento no es válida'); return }
+    if (!form.dni.trim()) { setError('Ingresá tu DNI o CUIT'); return }
     if (form.password !== form.confirm) { setError('Las contraseñas no coinciden'); return }
     if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
 
@@ -27,7 +28,8 @@ export default function RegisterPage() {
           lastName: form.lastName,
           businessName: form.businessName,
           phone: form.phone,
-          birthDate: form.birthDate
+          birthDate: form.birthDate,
+          dni: form.dni.trim(),
         }
       }
     })
@@ -46,6 +48,7 @@ export default function RegisterPage() {
         email: form.email,
         phone: form.phone,
         birth_date: form.birthDate,
+        dni: form.dni.trim(),
         role: 'user',
         role_id: 2
       }, { onConflict: 'id' })
@@ -79,12 +82,12 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Nombre</label>
+                <label className="block text-sm font-medium text-muted mb-1">Nombre <span className="text-accent">*</span></label>
                 <input type="text" required {...f('name')}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Juan" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Apellido</label>
+                <label className="block text-sm font-medium text-muted mb-1">Apellido <span className="text-accent">*</span></label>
                 <input type="text" required {...f('lastName')}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="Pérez" />
               </div>
@@ -96,29 +99,36 @@ export default function RegisterPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Email</label>
+                <label className="block text-sm font-medium text-muted mb-1">Email <span className="text-accent">*</span></label>
                 <input type="email" required {...f('email')}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="tu@email.com" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Teléfono</label>
+                <label className="block text-sm font-medium text-muted mb-1">Teléfono <span className="text-accent">*</span></label>
                 <input type="tel" required {...f('phone')}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="11 1234-5678" />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Fecha de nacimiento</label>
-              <input type="date" required min="1900-01-01" max={todayISO} {...f('birthDate')}
-                className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:dark]" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">Fecha de nacimiento <span className="text-accent">*</span></label>
+                <input type="date" required min="1900-01-01" max={todayISO} {...f('birthDate')}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:dark]" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted mb-1">DNI / CUIT <span className="text-accent">*</span></label>
+                <input type="text" required {...f('dni')}
+                  className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="20123456789" />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Contraseña</label>
+                <label className="block text-sm font-medium text-muted mb-1">Contraseña <span className="text-accent">*</span></label>
                 <input type="password" required {...f('password')}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Confirmar contraseña</label>
+                <label className="block text-sm font-medium text-muted mb-1">Confirmar contraseña <span className="text-accent">*</span></label>
                 <input type="password" required {...f('confirm')}
                   className="w-full px-4 py-3 bg-ink-900 border border-ink-600 rounded-xl text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" placeholder="••••••••" />
               </div>

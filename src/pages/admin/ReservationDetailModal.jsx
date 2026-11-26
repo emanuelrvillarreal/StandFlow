@@ -9,7 +9,7 @@ const PAYMENT_TYPE_STYLES = {
   full: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
 }
 
-export default function ReservationDetailModal({ detail, onClose, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {}, readOnly = false }) {
+export default function ReservationDetailModal({ detail, onClose, onStatusChange, onDeleteReservation, onNotifyPaid, onResendPaymentEmail = () => {}, onSendExpirationWarning = () => {}, readOnly = false, allowAddInsurance = !readOnly, currentUser = null, users = [] }) {
   const [photoPreview, setPhotoPreview] = useState(false)
   const [insurancePeople, setInsurancePeople] = useState([])
   const [addingCompanion, setAddingCompanion] = useState(false)
@@ -39,7 +39,7 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
       reservation_id: reservationId, role: 'acompanante',
       first_name: companionForm.first_name.trim(), last_name: companionForm.last_name.trim(),
       dni: companionForm.dni.trim(), birth_date: companionForm.birth_date,
-      added_by_admin: true, position: insurancePeople.length,
+      added_by_admin: true, created_by: currentUser?.id || null, position: insurancePeople.length,
     }).select().single()
     setInsuranceSaving(false)
     if (error) { setInsuranceErr(`No se pudo agregar: ${error.message}`); return }
@@ -54,7 +54,7 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
   }
 
   if (!detail) return null
-  const { reservation, event, stand, user, category } = detail
+  const { reservation, event, stand, user, category, creator } = detail
   const paymentType = reservation.paymentType || 'full'
   const depositPct = stand?.price ? Math.round((reservation.amount / stand.price) * 100) : null
   const paymentTypeLabel = paymentType === 'deposit' ? `Seña${depositPct ? ` (${depositPct}%)` : ''}` : 'Total (100%)'
@@ -93,6 +93,12 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
               {!readOnly && <p className="font-bold text-violet-600">${reservation.amount.toLocaleString('es-AR')}</p>}
               <p className="text-gray-500">{STATUS_LABELS[reservation.status]}</p>
               {reservation.createdAt && <p className="text-[11px] text-gray-400 mt-1">Se anotó el {formatDateTime(reservation.createdAt)}</p>}
+              {reservation.createdBy && (
+                <p className="text-[11px] text-violet-600 mt-0.5">
+                  Carga rápida por {creator ? `${creator.name} ${creator.lastName || ''}`.trim() : 'un administrador'}
+                  {creator?.role_id === 3 ? ' (Visualizador)' : ''}
+                </p>
+              )}
               {!readOnly && (
                 <span className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${PAYMENT_TYPE_STYLES[paymentType]}`}>
                   {paymentTypeLabel}
@@ -184,7 +190,15 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
                           {p.role === 'titular' ? 'Titular' : 'Acompañante'}
                         </span>
                       </p>
-                      <p className="text-gray-500 text-xs mt-0.5">DNI {p.dni} · Nac. {formatBirthDate(p.birth_date)}{p.added_by_admin ? ' · cargado por el admin' : ''}</p>
+                      <p className="text-gray-500 text-xs mt-0.5">
+                        DNI {p.dni} · Nac. {formatBirthDate(p.birth_date)}
+                        {p.added_by_admin && ` · cargado por ${(() => {
+                          const c = users.find(u => u.id === p.created_by)
+                          if (!c) return 'el admin'
+                          const name = `${c.name} ${c.lastName || ''}`.trim()
+                          return c.role_id === 3 ? `${name} (Visualizador)` : name
+                        })()}`}
+                      </p>
                     </div>
                     {!readOnly && p.role === 'acompanante' && (
                       <button onClick={() => handleDeleteInsurancePerson(p.id)} className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
@@ -196,15 +210,15 @@ export default function ReservationDetailModal({ detail, onClose, onStatusChange
               </div>
             )}
 
-            {!readOnly && (addingCompanion ? (
+            {allowAddInsurance && (addingCompanion ? (
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mt-3 space-y-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <input type="text" placeholder="Nombre" value={companionForm.first_name} onChange={e => setCompanionForm({ ...companionForm, first_name: e.target.value })}
+                  <input type="text" placeholder="Nombre *" value={companionForm.first_name} onChange={e => setCompanionForm({ ...companionForm, first_name: e.target.value })}
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
-                  <input type="text" placeholder="Apellido" value={companionForm.last_name} onChange={e => setCompanionForm({ ...companionForm, last_name: e.target.value })}
+                  <input type="text" placeholder="Apellido *" value={companionForm.last_name} onChange={e => setCompanionForm({ ...companionForm, last_name: e.target.value })}
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                 </div>
-                <input type="text" placeholder="DNI" value={companionForm.dni} onChange={e => setCompanionForm({ ...companionForm, dni: e.target.value })}
+                <input type="text" placeholder="DNI *" value={companionForm.dni} onChange={e => setCompanionForm({ ...companionForm, dni: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                 <input type="date" value={companionForm.birth_date} onChange={e => setCompanionForm({ ...companionForm, birth_date: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
