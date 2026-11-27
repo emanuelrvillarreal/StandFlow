@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
-import { ArrowLeft, MessageCircle, Mail, Calendar, Tag, Store, Instagram, Pencil } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Mail, Calendar, Tag, Store, Instagram, Pencil, IdCard } from 'lucide-react'
 import { formatEventDate } from '../lib/formatEventDate'
 import { formatDateTime } from '../lib/formatDateTime'
+import InsuranceDataModal from '../components/InsuranceDataModal'
 
 const STATUS_LABELS = { pending:'Pendiente', paid:'Pagado', cancelled:'Cancelado', reserved:'Reservado' }
 const STATUS_STYLES = {
@@ -16,6 +18,7 @@ export default function MyReservationsPage() {
   const { state } = useApp()
   const navigate = useNavigate()
   const { currentUser, reservations, events, categories } = state
+  const [insuranceRes, setInsuranceRes] = useState(null)
 
   const myRes = reservations.filter(r => r.userId === currentUser?.id)
 
@@ -180,6 +183,15 @@ export default function MyReservationsPage() {
                     </div>
                   </div>
 
+                  {r.status !== 'cancelled' && (
+                    <div className="px-5 pb-4">
+                      <button onClick={() => setInsuranceRes(r)}
+                        className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl transition text-sm shadow-lg shadow-violet-900/30">
+                        <IdCard size={18}/> Completar o editar datos de seguro
+                      </button>
+                    </div>
+                  )}
+
                   {r.categoryDetails && (
                     <div className="px-5 pb-4">
                       <div className="bg-ink-900 border border-ink-600 rounded-xl px-4 py-3">
@@ -214,6 +226,10 @@ export default function MyReservationsPage() {
           </div>
         )}
       </div>
+
+      {insuranceRes && (
+        <InsuranceDataModal reservation={insuranceRes} onClose={() => setInsuranceRes(null)} />
+      )}
     </div>
   )
 }
